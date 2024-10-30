@@ -15,10 +15,12 @@
 // License that can be found in the LICENSE file.
 
 
-#ifndef UTILITY_H
-#define UTILITY_H
+#ifndef EASYOPCDA_H
+#define EASYOPCDA_H
 
 #include <atlbase.h>
+
+#include "spdlog/spdlog.h"
 
 #include "opccomn.h"
 #include "opcda.h"
@@ -28,12 +30,8 @@
 #include <sstream>
 #include <functional>
 #include <iomanip>
+#include <codecvt>
 
-#ifdef DEBUG_VERBOSE
-#define VERBOSE_PRINT(x) std::wcerr << x
-#else
-#define VERBOSE_PRINT(x)
-#endif
 
 typedef struct {
     std::wstring tagName;
@@ -44,6 +42,11 @@ typedef struct {
 } dataAtom;
 
 typedef std::function<void(std::wstring groupName, dataAtom)> ASyncCallback;
+
+inline std::string wstring_to_utf8(const std::wstring& wstr) {
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    return converter.to_bytes(wstr);
+}
 
 
 std::wstring inline opcQualityToString(WORD quality) {
@@ -118,6 +121,11 @@ std::wstring inline hresultTowstring(HRESULT hr) {
     }
 }
 
+std::string inline hresultToUTF8(HRESULT hr) {
+    return wstring_to_utf8(hresultTowstring(hr));
+}
+
+
 HRESULT inline OPCServerListCreateInstance(COSERVERINFO *serverInfo, COAUTHIDENTITY *authIdent, bool localhost, ATL::CComPtr<IOPCServerList> &iCatInfo) {
     MULTI_QI qiList[1] =
     {
@@ -141,11 +149,11 @@ HRESULT inline OPCServerListCreateInstance(COSERVERINFO *serverInfo, COAUTHIDENT
                 EOAC_NONE // additional capabilities
             );
             if (FAILED(hrAuth)) {
-                VERBOSE_PRINT("CoSetProxyBlanket failed on the IOPCServerList with error " << hresultTowstring(hrAuth) << std::endl;)
+                spdlog::error("CoSetProxyBlanket failed on the IOPCServerList with error = {}", hresultToUTF8(hrAuth));
                 //return hrAuth;
             }
         } else {
-            VERBOSE_PRINT("CoCreateInstance failed querying the interface IOPCServerList with error " << hresultTowstring(hr) << std::endl;)
+            spdlog::error("CoCreateInstance failed querying the interface IOPCServerList with error = {}", hresultToUTF8(hr));
             iCatInfo = nullptr;
         }
     } else {
@@ -163,11 +171,11 @@ HRESULT inline OPCServerListCreateInstance(COSERVERINFO *serverInfo, COAUTHIDENT
                 EOAC_NONE // additional capabilities
             );
             if (FAILED(hrAuth)) {
-                VERBOSE_PRINT(L"CoSetProxyBlanket failed on the IOPCServerList with error " << hresultTowstring(hrAuth) << std::endl;)
+                spdlog::error("CoSetProxyBlanket failed on the IOPCServerList with error = {}", hresultToUTF8(hrAuth));
                 //return hrAuth;
             }
         } else {
-            VERBOSE_PRINT(L"CoCreateInstance failed querying the interface IOPCServerList with error " << hresultTowstring(hr) << std::endl;)
+            spdlog::error("CoCreateInstance failed querying the interface IOPCServerList with error = {}", hresultToUTF8(hr));
             iCatInfo = nullptr;
         }
     }
@@ -197,11 +205,11 @@ HRESULT inline OPCServerCreateInstance(COSERVERINFO *serverInfo, COAUTHIDENTITY 
                 EOAC_NONE // additional capabilities
             );
             if (FAILED(hrAuth)) {
-                VERBOSE_PRINT(L"CoSetProxyBlanket failed on the IOPCServer with error " << hresultTowstring(hrAuth) << std::endl;)
+                spdlog::error("CoSetProxyBlanket failed on the IOPCServer with error = {}", hresultToUTF8(hrAuth));
                 //return hrAuth;
             }
         } else {
-            VERBOSE_PRINT(L"CoCreateInstance failed querying the interface IOPCServer with error " << hresultTowstring(hr) << std::endl;)
+            spdlog::error("CoCreateInstance failed querying the interface IOPCServer with error = {}", hresultToUTF8(hr));
             pOPCServer = nullptr;
         }
     } else {
@@ -219,11 +227,11 @@ HRESULT inline OPCServerCreateInstance(COSERVERINFO *serverInfo, COAUTHIDENTITY 
                 EOAC_NONE // additional capabilities
             );
             if (FAILED(hrAuth)) {
-                VERBOSE_PRINT(L"CoSetProxyBlanket failed on the IOPCServer with error " << hresultTowstring(hrAuth) << std::endl;)
+                spdlog::error("CoSetProxyBlanket failed on the IOPCServer with error = {}",hresultToUTF8(hrAuth));
                 //return hrAuth;
             }
         } else {
-            VERBOSE_PRINT(L"CoCreateInstance failed querying the interface IOPCServer with error " << hresultTowstring(hr) << std::endl;)
+            spdlog::error("CoCreateInstance failed querying the interface IOPCServer with error = {}", hresultToUTF8(hr));
             pOPCServer = nullptr;
         }
     }
@@ -289,38 +297,7 @@ inline uint64_t FileTimeToUint64(FILETIME ft) {
     return time_union.as_ulonglong;
 }
 
-/*
-inline rpcmpleVariant VARIANT2variant(const VARIANT &myVal) {
-    rpcmpleVariant outputVariant;
 
-    if (myVal.vt == VT_R4) outputVariant = static_cast<double>(myVal.fltVal);
-    else if (myVal.vt == VT_R8) outputVariant = static_cast<double>(myVal.dblVal);
-    else if (myVal.vt == VT_I1) outputVariant = static_cast<int64_t>(myVal.cVal);
-    else if (myVal.vt == VT_I2) outputVariant = static_cast<int64_t>(myVal.iVal);
-    else if (myVal.vt == VT_I4) outputVariant = static_cast<int64_t>(myVal.lVal);
-    else if (myVal.vt == VT_I8) outputVariant = static_cast<int64_t>(myVal.llVal);
-    else if (myVal.vt == VT_UI1) outputVariant = static_cast<int64_t>(myVal.bVal);
-    else if (myVal.vt == VT_UI2) outputVariant = static_cast<int64_t>(myVal.uiVal);
-    else if (myVal.vt == VT_UI4) outputVariant = static_cast<int64_t>(myVal.ulVal);
-    else if (myVal.vt == VT_UI8) outputVariant = static_cast<int64_t>(myVal.ullVal);
-    else if (myVal.vt == VT_INT) outputVariant = static_cast<int64_t>(myVal.intVal);
-    else if (myVal.vt == VT_UINT) outputVariant = static_cast<int64_t>(myVal.uintVal);
-    else if (myVal.vt == VT_LPSTR) {
-        int len = MultiByteToWideChar(CP_ACP, 0, myVal.pcVal, -1, nullptr, 0);
-        if (len > 0) {
-            std::wstring wstr(len, L'\0');
-            MultiByteToWideChar(CP_ACP, 0, myVal.pcVal, -1, &wstr[0], len);
-            wstr.resize(len - 1); // Remove the null terminator added by MultiByteToWideChar
-            outputVariant = wstr;
-        } else {
-            throw std::runtime_error("Failed to convert LPSTR to std::wstring");
-        }
-    } else if (myVal.vt == VT_LPWSTR) outputVariant = std::wstring(myVal.bstrVal);
-    else if (myVal.vt == VT_BSTR) outputVariant = std::wstring(myVal.bstrVal);
-
-    return outputVariant;
-}
-*/
 inline std::wstring GUIDToString(const GUID& guid) {
     wchar_t guidString[39]; // GUID string format is 38 characters plus null terminator
     int result = StringFromGUID2(guid, guidString, ARRAYSIZE(guidString));
@@ -345,4 +322,4 @@ inline USHORT* CopyWStringToAuthIdentity(const std::wstring& wstr) {
 }
 
 
-#endif //UTILITY_H
+#endif //EASYOPCDA_H

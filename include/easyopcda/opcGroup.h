@@ -21,9 +21,9 @@
 
 #include <atlbase.h>
 
+#include "easyopcda.h"
 #include "opccomn.h"
 #include "opcda.h"
-#include "utility.h"
 
 #include <string>
 #include <vector>
@@ -107,7 +107,7 @@ public:
 
     void syncWriteItems(std::vector<std::wstring> &items, std::vector<double> values);
 
-    bool isError() {return error;}
+    bool isError() const {return error;}
     std::wstring lastMessage() {
         if(messageString.size()>10000) messageString.resize(10000);
         return messageString;

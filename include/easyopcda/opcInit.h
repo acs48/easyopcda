@@ -17,8 +17,8 @@
 #ifndef OPCINIT_H
 #define OPCINIT_H
 
+#include "easyopcda.h"
 #include "OPCClient.h"
-#include "utility.h"
 
 void listDA20Servers(COSERVERINFO *serverInfo, bool localhost, std::map<std::wstring, CLSID> &progidClsidMap);
 

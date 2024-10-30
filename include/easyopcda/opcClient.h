@@ -19,9 +19,9 @@
 
 #include <atlbase.h>
 
+#include "easyopcda.h"
 #include "opcda.h"
 #include "opcGroup.h"
-#include "utility.h"
 
 #include <string>
 #include <map>
@@ -58,15 +58,15 @@ public:
     explicit OPCClient(ASyncCallback func);
     ~OPCClient();
 
-    void setOPCServerHostAndUser(std::wstring hostName,std::wstring domain, std::wstring user, std::wstring password);
-    bool listDAServers(std::wstring spec);
-    bool connectToOPCByProgID(std::wstring progID);
-    void connectToOPCByClsid(CLSID clsid);
+    void setOPCServerHostAndUser(std::wstring hostName,const std::wstring& domain, const std::wstring& user, const std::wstring& password);
+    bool listDAServers(const std::wstring &spec);
+    bool connectToOPCByProgID(const std::wstring &progID);
+    void connectToOPCByClsid(const CLSID &clsid);
     OPCGroup* addGroup(std::wstring, DWORD);
-    OPCGroup* getGroup(std::wstring);
+    OPCGroup* getGroup(const std::wstring&);
     void removeGroup(std::wstring);
 
-    bool isError() {return error;}
+    bool isError() const {return error;}
     std::wstring lastMessage() {
         if(messageString.size()>10000) messageString.resize(10000);
         return messageString;

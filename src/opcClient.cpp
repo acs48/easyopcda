@@ -15,11 +15,12 @@
 // License that can be found in the LICENSE file.
 
 
+#include "easyopcda/easyopcda.h"
 #include "easyopcda/OPCClient.h"
-#include "easyopcda/utility.h"
 #include <easyopcda/opccomn.h>
 
-#include <iostream>
+#include "spdlog/spdlog.h"
+
 #include <locale>
 #include <string>
 #include <map>
@@ -41,11 +42,11 @@ OPCClient::~OPCClient() {
     }
 }
 
-void OPCClient::setOPCServerHostAndUser(std::wstring hostName, std::wstring domain, std::wstring user, std::wstring password) {
+void OPCClient::setOPCServerHostAndUser(std::wstring hostName, const std::wstring& domain, const std::wstring& user, const std::wstring &password) {
     std::wstringstream wss;
 
     if (error) {
-        VERBOSE_PRINT(L"Client in error state cannot further process requests" << std::endl);
+        spdlog::error("Client in error state cannot further process requests");
         wss << L"Client in error state cannot further process requests" << std::endl;
         messageString = wss.str();
         return;
@@ -54,7 +55,7 @@ void OPCClient::setOPCServerHostAndUser(std::wstring hostName, std::wstring doma
         hostName = L"localhost";
     }
     this->hostName = hostName;
-    VERBOSE_PRINT(L"Host name: " << L">>>"<<hostName<<L"<<<"<< std::endl);
+    spdlog::info("Host name: >>>{}<<<", wstring_to_utf8(hostName));
     wss << L"Host name: " << L">>>"<<hostName<<L"<<<"<< std::endl;
 
 
@@ -68,7 +69,7 @@ void OPCClient::setOPCServerHostAndUser(std::wstring hostName, std::wstring doma
 
     authInfo.dwAuthnSvc = RPC_C_AUTHN_WINNT;
     authInfo.dwAuthzSvc = RPC_C_AUTHZ_NONE;
-    authInfo.pwszServerPrincName = NULL;
+    authInfo.pwszServerPrincName = nullptr;
     authInfo.dwAuthnLevel = RPC_C_AUTHN_LEVEL_PKT_INTEGRITY;
     authInfo.dwImpersonationLevel = RPC_C_IMP_LEVEL_IMPERSONATE;
     authInfo.dwCapabilities = EOAC_NONE;
@@ -77,9 +78,9 @@ void OPCClient::setOPCServerHostAndUser(std::wstring hostName, std::wstring doma
     wss << L"Domain name: " << ">>>"<<domain<<"<<<"<<std::endl;
     wss << L"User name: " << ">>>"<<user<<"<<<"<<std::endl;
     wss << L"Password: " << ">>>"<<password<<"<<<"<<std::endl;
-    VERBOSE_PRINT(L"Domain name: " << ">>>"<<domain<<"<<<"<<std::endl);
-    VERBOSE_PRINT(L"User name: " << ">>>"<<user<<"<<<"<<std::endl);
-    VERBOSE_PRINT(L"Password: " << ">>>"<<password<<"<<<"<<std::endl);
+    spdlog::info("Domain name: >>>{}<<<",wstring_to_utf8(domain));
+    spdlog::info("User name: >>>{}<<<", wstring_to_utf8(user));
+    spdlog::info("Password: >>>{}<<<", wstring_to_utf8(password));
 
     this->domain=domain;
     this->user=user;
@@ -104,12 +105,12 @@ void OPCClient::setOPCServerHostAndUser(std::wstring hostName, std::wstring doma
 }
 
 
-bool OPCClient::listDAServers(std::wstring spec) {
+bool OPCClient::listDAServers(const std::wstring &spec) {
     std::wstringstream wss;
 
     if (error) {
         messageString = L"Client in error state cannot further process requests";
-        VERBOSE_PRINT(L"Client in error state cannot further process requests" << std::endl);
+        spdlog::error("Client in error state cannot further process requests");
         return false;
     }
 
@@ -121,12 +122,14 @@ bool OPCClient::listDAServers(std::wstring spec) {
     else if (spec==L"30") requiredDASpec=CATID_OPCDAServer30;
     else {
         wss << L"Invalid DA specification: " << ">>>"<<spec<<"<<<"<<std::endl;
-        VERBOSE_PRINT(L"Invalid DA specification: " << ">>>"<<spec<<"<<<"<<std::endl);
+        spdlog::error("Invalid DA specification: >>>{}<<<",wstring_to_utf8(spec));
         lastMessage() = wss.str();
         return false;
     }
 
-    VERBOSE_PRINT(L"Thread listing OPC servers: " << std::this_thread::get_id() << std::endl);
+    auto tid = std::this_thread::get_id();
+    auto hid = std::hash<std::thread::id>{}(tid);
+    spdlog::debug("Thread listing OPC servers: {}", hid);
 
     ATL::CComPtr<IOPCServerList> iCatInfo;
     HRESULT hr = OPCServerListCreateInstance(&serverInfo, identitySet?&authIdent:nullptr, this->hostName==L"localhost",iCatInfo);
@@ -148,7 +151,7 @@ bool OPCClient::listDAServers(std::wstring spec) {
                 EOAC_NONE // additional capabilities
             );
             if (FAILED(hrAuth)) {
-                VERBOSE_PRINT(L"CoSetProxyBlanket failed on the ICatInformation with error " << hresultTowstring(hrAuth) << std::endl);
+                spdlog::error("CoSetProxyBlanket failed on the ICatInformation with error = {}", hresultToUTF8(hrAuth));
                 wss << "CoSetProxyBlanket failed on the ICatInformation with error " << hrAuth << std::endl;
                 messageString = wss.str();
                 //return hrAuth;
@@ -162,7 +165,7 @@ bool OPCClient::listDAServers(std::wstring spec) {
                 LPOLESTR userType = nullptr;
                 HRESULT result = iCatInfo->GetClassDetails(clsid, &progID, &userType);
                 if (SUCCEEDED(result)){
-                    VERBOSE_PRINT(L"Discovered server " << progID << L" " << userType << std::endl);
+                    spdlog::info("Discovered server >>>{}<<< {}", wstring_to_utf8(progID), wstring_to_utf8(userType));
                     wss << L"Discovered server " << progID << L" " << userType << std::endl;
                     progIDtoCLSIDmap[progID] = clsid;
                 }
@@ -176,13 +179,13 @@ bool OPCClient::listDAServers(std::wstring spec) {
             //iCatInfo->Release(); not necessary because of ccomptr usage
         } else {
             wss << L"EnumClassesOfCategories failed to enum classes of type CATID_OPCDAServer20 from instance of interface IID_IOPCServerList with error " << hresultTowstring(hr) << std::endl;
-            VERBOSE_PRINT(L"EnumClassesOfCategories failed to enum classes of type CATID_OPCDAServer20 from instance of interface IID_IOPCServerList with error " << hresultTowstring(hr) << std::endl);
+            spdlog::error("EnumClassesOfCategories failed to enum classes of type CATID_OPCDAServer20 from instance of interface IID_IOPCServerList with error = {}", hresultToUTF8(hr));
             messageString = wss.str();
             return false;
         }
     } else {
         wss << L"CoCreateInstanceEx failed to get instance of interface IID_IOPCServerList from class CLSID_OpcServerList on the " << this->hostName << "server with error " << hresultTowstring(hr) << std::endl;
-        VERBOSE_PRINT(L"CoCreateInstanceEx failed to get instance of interface IID_IOPCServerList from class CLSID_OpcServerList on the " << this->hostName << "server with error " << hresultTowstring(hr) << std::endl);
+        spdlog::error("CoCreateInstanceEx failed to get instance of interface IID_IOPCServerList from class CLSID_OpcServerList on the {} server with error = {}",  wstring_to_utf8(this->hostName), hresultToUTF8(hr));
         messageString = wss.str();
         return false;
     }
@@ -192,20 +195,20 @@ bool OPCClient::listDAServers(std::wstring spec) {
 }
 
 
-bool OPCClient::connectToOPCByProgID(std::wstring progID) {
+bool OPCClient::connectToOPCByProgID(const std::wstring &progID) {
     std::wstringstream wss;
     if (error) {
         messageString = L"Client in error state cannot further process requests";
-        VERBOSE_PRINT(L"Client in error state cannot further process requests" << std::endl);
+        spdlog::error("Client in error state cannot further process requests");
         return false;
     }
 
     serverProgID=progID;
     wss << L"ProgID for connection: " << ">>>"<<serverProgID<<"<<<"<<std::endl;
-    VERBOSE_PRINT("ProgID for connection: " << ">>>"<<serverProgID<<"<<<"<<std::endl);
+    spdlog::info("ProgID for connection: >>>{}<<<", wstring_to_utf8(serverProgID));
 
     if (serverProgID.empty()) {
-        VERBOSE_PRINT(L"Invalid progID requested" << std::endl);
+        spdlog::warn("Invalid progID requested: {}", wstring_to_utf8(serverProgID));
         wss <<  L"Invalid progID requested" << std::endl;
         //error=true;
         messageString = wss.str();
@@ -214,12 +217,12 @@ bool OPCClient::connectToOPCByProgID(std::wstring progID) {
 
     if (progIDtoCLSIDmap.count(serverProgID)==0) {
         wss << L"Requested progID could not be found; attempting to look for clsid again" << std::endl;
-        VERBOSE_PRINT(L"Requested progID could not be found; attempting to look for clsid again" << std::endl);
+        spdlog::warn("Requested progID {} could not be found; attempting to look for clsid again", wstring_to_utf8(serverProgID));
         CLSID sClsid;
         HRESULT hrGetProcID = CLSIDFromProgID ( serverProgID.c_str(), &sClsid );
         if FAILED(hrGetProcID) {
             wss << L"Requested progID could not be found." << std::endl;
-            VERBOSE_PRINT(L"Requested progID could not be found." << std::endl);
+            spdlog::error("Requested progID could not be found");
             //error=true;
             messageString = wss.str();
             return false;
@@ -229,11 +232,13 @@ bool OPCClient::connectToOPCByProgID(std::wstring progID) {
         serverclsid = progIDtoCLSIDmap[serverProgID];
     }
 
-    VERBOSE_PRINT(L"Thread connecting to OPC server: " << std::this_thread::get_id() << std::endl);
+    auto tid = std::this_thread::get_id();
+    auto hid = std::hash<std::thread::id>{}(tid);
+    spdlog::debug("Thread connecting to OPC server: {}", hid);
 
     HRESULT hrOPCServerInstance = OPCServerCreateInstance(&serverInfo,identitySet?&authIdent:nullptr,hostName==L"localhost",serverclsid,pOPCServer);
     if FAILED(hrOPCServerInstance) {
-        VERBOSE_PRINT(L"CoCreateInstanceEx could not create instance of interface IID_OPCServer from requested class" << std::endl);
+        spdlog::error("CoCreateInstanceEx could not create instance of interface IID_OPCServer from requested class");
         wss << L"CoCreateInstanceEx could not create instance of interface IID_OPCServer from requested class" << std::endl;
         error=true;
         messageString = wss.str();
@@ -244,24 +249,26 @@ bool OPCClient::connectToOPCByProgID(std::wstring progID) {
 }
 
 
-void OPCClient::connectToOPCByClsid(CLSID clsid) {
+void OPCClient::connectToOPCByClsid(const CLSID &clsid) {
     std::wstringstream wss;
     if (error) {
         messageString =  L"Client in error state cannot further process requests";
-        VERBOSE_PRINT(L"Client in error state cannot further process requests" << std::endl);
+        spdlog::error("Client in error state cannot further process requests");
         return;
     }
 
     serverclsid=clsid;
-    wss << L"clsid for connection: " << ">>>{"<<clsid.Data1<<clsid.Data2<<clsid.Data3<<"{"<<clsid.Data4<<"}}<<<"<<std::endl;
-    VERBOSE_PRINT(L"clsid for connection: " << ">>>{"<<clsid.Data1<<clsid.Data2<<clsid.Data3<<"{"<<clsid.Data4<<"}}<<<"<<std::endl);
+    wss << L"clsid for connection: " << ">>>"<<GUIDToString(clsid)<<"<<<"<<std::endl;
+    spdlog::info("clsid for connection: >>>{}<<<", wstring_to_utf8(GUIDToString(clsid)));
 
-    VERBOSE_PRINT(L"Thread connecting to OPC server: " << std::this_thread::get_id() << std::endl);
+    auto tid = std::this_thread::get_id();
+    auto hid = std::hash<std::thread::id>{}(tid);
+    spdlog::debug("Thread connecting to OPC server: {}",hid);
 
     HRESULT hrOPCServerInstance = OPCServerCreateInstance(&serverInfo,identitySet?&authIdent:nullptr,hostName==L"localhost",serverclsid,pOPCServer);
     if FAILED(hrOPCServerInstance) {
         wss << L"CoCreateInstanceEx could not create instance of interface IID_OPCServer from requested class" << std::endl;
-        VERBOSE_PRINT(L"CoCreateInstanceEx could not create instance of interface IID_OPCServer from requested class" << std::endl);
+        spdlog::error("CoCreateInstanceEx could not create instance of interface IID_OPCServer from requested class");
         error=true;
         messageString=wss.str();
         return;
@@ -274,43 +281,43 @@ OPCGroup* OPCClient::addGroup(std::wstring name, DWORD requestedUpdateRate) {
     std::wstringstream wss;
     if (error) {
         messageString = L"Client in error state cannot further process requests";
-        VERBOSE_PRINT(L"Client in error state cannot further process requests" << std::endl);
+        spdlog::error("Client in error state cannot further process requests");
         return nullptr;
     }
     
     if (name.empty()) {
-        VERBOSE_PRINT(L"Invalid group name" << std::endl);
+        spdlog::error("Invalid group name");
         messageString=L"Invalid group name";
         return nullptr;
     }
 
     wss << L"Group name: >>>" << name << L"<<<" << std::endl << L"Update rate: >>>" << requestedUpdateRate << L"<<<" << std::endl;
-    VERBOSE_PRINT(L"Group name: >>>" << name << L"<<<" << std::endl << L"Update rate: >>>" << requestedUpdateRate << L"<<<" << std::endl);
+    spdlog::info("Group name: >>>{}<<< Update rate: >>>{}<<<", wstring_to_utf8(name), requestedUpdateRate);
 
     if(groups.count(name)>0) {
         wss << L"Group with this name already exists. Skipping..." << std::endl;
-        VERBOSE_PRINT(L"Group with this name already exists. Skipping..." << std::endl);
+        spdlog::warn("Group with this name already exists. Skipping...");
         messageString = wss.str();
         return nullptr;
     } else {
         groups[name] = new OPCGroup(name,pOPCServer,identitySet?&authIdent:nullptr,requestedUpdateRate,mCallbackFunc);
         wss << L"Group created" << std::endl;
-        VERBOSE_PRINT(L"Group created" << std::endl);
+        spdlog::info("Group {} created", wstring_to_utf8(name));
     }
 
     messageString = wss.str();
     return groups[name];
 }
 
-OPCGroup* OPCClient::getGroup(std::wstring name) {
+OPCGroup* OPCClient::getGroup(const std::wstring& name) {
     if (error) {
         messageString = L"Client in error state cannot further process requests";
-        VERBOSE_PRINT(L"Client in error state cannot further process requests" << std::endl);
+        spdlog::error("Client in error state cannot further process requests");
         return nullptr;
     }
 
     if (groups.count(name) == 0) {
-        VERBOSE_PRINT(L"Invalid group name" << std::endl);
+        spdlog::error("Invalid group name");
         messageString = L"Invalid group name";
         return nullptr;
     }
@@ -323,12 +330,12 @@ void OPCClient::removeGroup(std::wstring name) {
     std::wstringstream wss;
     if (error) {
         messageString = L"Client in error state cannot further process requests";
-        VERBOSE_PRINT(L"Client in error state cannot further process requests" << std::endl);
+        spdlog::error("Client in error state cannot further process requests");
         return;
     }
 
     if (groups.count(name) == 0) {
-        VERBOSE_PRINT(L"Invalid group name" << std::endl);
+        spdlog::error("Invalid group name");
         wss << L"Invalid group name " << name;
         messageString = wss.str();
         return;
@@ -338,6 +345,6 @@ void OPCClient::removeGroup(std::wstring name) {
     groups.erase(name);
 
     wss <<  L"Group " << name << L" deleted";
-    VERBOSE_PRINT(L"Group " << name << L" deleted"<<std::endl);
+    spdlog::info("Group {} deleted",wstring_to_utf8(name));
     messageString = wss.str();
 }
