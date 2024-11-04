@@ -31,25 +31,36 @@
 #include <functional>
 #include <iomanip>
 #include <codecvt>
+#include <chrono>
 
 
-typedef struct {
-    std::wstring tagName;
-    FILETIME timestamp;
-    VARIANT value;
-    WORD quality;
-    HRESULT error;
-} dataAtom;
+#define DEBUG_LOG(...) if(easyopcda::logToDefault)spdlog::debug(__VA_ARGS__);if(easyopcda::logToClass){logger->debug(__VA_ARGS__);if(ss.str().size()>10240)ss.clear();}
+#define INFO_LOG(...)  if(easyopcda::logToDefault)spdlog::info(__VA_ARGS__); if(easyopcda::logToClass){logger->info(__VA_ARGS__);if(ss.str().size()>10240)ss.clear();}
+#define WARN_LOG(...) if(easyopcda::logToDefault)spdlog::warn(__VA_ARGS__);if(easyopcda::logToClass){logger->warn(__VA_ARGS__);if(ss.str().size()>10240)ss.clear();}
+#define ERROR_LOG(...) if(easyopcda::logToDefault)spdlog::error(__VA_ARGS__);if(easyopcda::logToClass){logger->error(__VA_ARGS__);if(ss.str().size()>10240)ss.clear();}
 
-typedef std::function<void(std::wstring groupName, dataAtom)> ASyncCallback;
+namespace easyopcda {
+    typedef struct {
+        std::wstring tagName;
+        FILETIME timestamp;
+        VARIANT value;
+        WORD quality;
+        HRESULT error;
+    } dataAtom;
 
-inline std::string wstring_to_utf8(const std::wstring& wstr) {
-    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-    return converter.to_bytes(wstr);
+    typedef std::function<void(std::wstring groupName, dataAtom)> ASyncCallback;
+
+    static bool logToDefault = true;
+    static bool logToClass = true;
+}
+
+inline std::string wstringToUTF8(const std::wstring& wstr) {
+    static std::wstring_convert<std::codecvt_utf8<wchar_t>> string_converter;
+    return string_converter.to_bytes(wstr);
 }
 
 
-std::wstring inline opcQualityToString(WORD quality) {
+std::wstring inline opcQualityToWstring(WORD quality) {
     switch (quality) {
         case OPC_QUALITY_BAD: return L"bad";
         case OPC_QUALITY_UNCERTAIN: return L"uncertain";
@@ -65,20 +76,44 @@ std::wstring inline opcQualityToString(WORD quality) {
         case OPC_QUALITY_LAST_USABLE: return L"last usable";
         case OPC_QUALITY_SENSOR_CAL: return L"sensor cal";
         case OPC_QUALITY_EGU_EXCEEDED: return L"egu exceeded";
-        case OPC_QUALITY_SUB_NORMAL: return L"sub bormal";
+        case OPC_QUALITY_SUB_NORMAL: return L"sub normal";
         case OPC_QUALITY_LOCAL_OVERRIDE: return L"local override";
         case OPC_LIMIT_LOW: return L"limit low";
         case OPC_LIMIT_HIGH: return L"limit high";
-        case OPC_LIMIT_CONST: return L"limitconst";
+        case OPC_LIMIT_CONST: return L"limit const";
         default: return L"unknown";
     }
 }
 
-std::wstring inline hresultTowstring(HRESULT hr) {
+std::string inline opcQualityToUTF8(WORD quality) {
+    switch (quality) {
+        case OPC_QUALITY_BAD: return "bad";
+        case OPC_QUALITY_UNCERTAIN: return "uncertain";
+        case OPC_QUALITY_GOOD: return "good";
+        case OPC_QUALITY_CONFIG_ERROR: return "config error";
+        case OPC_QUALITY_NOT_CONNECTED: return "not connected";
+        case OPC_QUALITY_DEVICE_FAILURE: return "device failure";
+        case OPC_QUALITY_SENSOR_FAILURE: return "sensor failure";
+        case OPC_QUALITY_LAST_KNOWN: return "last known";
+        case OPC_QUALITY_COMM_FAILURE: return "comm failure";
+        case OPC_QUALITY_OUT_OF_SERVICE: return "out of service";
+        case OPC_QUALITY_WAITING_FOR_INITIAL_DATA: return "waiting for initial data";
+        case OPC_QUALITY_LAST_USABLE: return "last usable";
+        case OPC_QUALITY_SENSOR_CAL: return "sensor cal";
+        case OPC_QUALITY_EGU_EXCEEDED: return "egu exceeded";
+        case OPC_QUALITY_SUB_NORMAL: return "sub normal";
+        case OPC_QUALITY_LOCAL_OVERRIDE: return "local override";
+        case OPC_LIMIT_LOW: return "limit low";
+        case OPC_LIMIT_HIGH: return "limit high";
+        case OPC_LIMIT_CONST: return "limit const";
+        default: return "unknown";
+    }
+}
+
+std::wstring inline hresultToWstring(HRESULT hr) {
     switch (hr) {
         case OPC_E_INVALIDHANDLE: return L"The value of the handle is invalid";
-        case OPC_E_BADTYPE: return
-                    L"The server cannot convert the data between the requested data type and the canonical data type";
+        case OPC_E_BADTYPE: return L"The server cannot convert the data between the requested data type and the canonical data type";
         case OPC_E_PUBLIC: return L"The requested operation cannot be done on a public group";
         case OPC_E_BADRIGHTS: return L"The Items AccessRights do not allow the operation";
         case OPC_E_UNKNOWNITEMID: return L"The item is no longer available in the server address space";
@@ -87,11 +122,9 @@ std::wstring inline hresultTowstring(HRESULT hr) {
         case OPC_E_UNKNOWNPATH: return L"The item's access path is not known to the server";
         case OPC_E_RANGE: return L"The value was out of range";
         case OPC_E_DUPLICATENAME: return L"Duplicate name not allowed";
-        case OPC_S_UNSUPPORTEDRATE: return
-                    L"The server does not support the requested data rate but will use the closest available rate";
+        case OPC_S_UNSUPPORTEDRATE: return L"The server does not support the requested data rate but will use the closest available rate";
         case OPC_S_CLAMP: return L"A value passed to WRITE was accepted but the output was clamped";
-        case OPC_S_INUSE: return
-                    L"The operation cannot be completed because the object still has references that exist";
+        case OPC_S_INUSE: return L"The operation cannot be completed because the object still has references that exist";
         case OPC_E_INVALIDCONFIGFILE: return L"The server's configuration file is an invalid format";
         case OPC_E_NOTFOUND: return L"The server could not locate the requested object";
         case OPC_E_INVALID_PID: return L"The server does not recognise the passed property ID";
@@ -122,7 +155,45 @@ std::wstring inline hresultTowstring(HRESULT hr) {
 }
 
 std::string inline hresultToUTF8(HRESULT hr) {
-    return wstring_to_utf8(hresultTowstring(hr));
+       switch (hr) {
+        case OPC_E_INVALIDHANDLE: return "The value of the handle is invalid";
+        case OPC_E_BADTYPE: return"The server cannot convert the data between the requested data type and the canonical data type";
+        case OPC_E_PUBLIC: return "The requested operation cannot be done on a public group";
+        case OPC_E_BADRIGHTS: return "The Items AccessRights do not allow the operation";
+        case OPC_E_UNKNOWNITEMID: return "The item is no longer available in the server address space";
+        case OPC_E_INVALIDITEMID: return "The item definition doesn't conform to the server's syntax";
+        case OPC_E_INVALIDFILTER: return "The filter string was not valid";
+        case OPC_E_UNKNOWNPATH: return "The item's access path is not known to the server";
+        case OPC_E_RANGE: return "The value was out of range";
+        case OPC_E_DUPLICATENAME: return "Duplicate name not allowed";
+        case OPC_S_UNSUPPORTEDRATE: return "The server does not support the requested data rate but will use the closest available rate";
+        case OPC_S_CLAMP: return "A value passed to WRITE was accepted but the output was clamped";
+        case OPC_S_INUSE: return "The operation cannot be completed because the object still has references that exist";
+        case OPC_E_INVALIDCONFIGFILE: return "The server's configuration file is an invalid format";
+        case OPC_E_NOTFOUND: return "The server could not locate the requested object";
+        case OPC_E_INVALID_PID: return "The server does not recognise the passed property ID";
+        case S_OK: return "Succeeded";
+        case S_FALSE: return "Succeeded with warnings";
+        case E_UNEXPECTED: return "Catastrophic failure";
+        case E_NOTIMPL: return "Not implemented";
+        case E_OUTOFMEMORY: return "Ran out of memory";
+        case E_INVALIDARG: return "One or more arguments are invalid";
+        case E_NOINTERFACE: return "No such interface supported";
+        case E_POINTER: return "Invalid pointer";
+        case E_HANDLE: return "Invalid handle";
+        case E_ABORT: return "Operation aborted";
+        case E_FAIL: return "Unspecified error";
+        case E_ACCESSDENIED: return "General access denied error";
+        case E_PENDING: return "The data necessary to complete this operation is not yet available";
+        case E_BOUNDS: return "The operation attempted to access data outside the valid range";
+        case E_CHANGED_STATE: return "A concurrent or interleaved operation changed the state of the object, invalidating this operation.";
+        case E_ILLEGAL_STATE_CHANGE: return "An illegal state change was requested";
+        case E_ILLEGAL_METHOD_CALL: return "A method was called at an unexpected time";
+        default:
+            std::stringstream ss;
+            ss << std::hex << hr;
+            return ss.str();
+    }
 }
 
 
@@ -238,6 +309,29 @@ HRESULT inline OPCServerCreateInstance(COSERVERINFO *serverInfo, COAUTHIDENTITY 
     return hr;
 }
 
+std::string inline variant2UTF8(const VARIANT &myVal) {
+    std::stringstream ss;
+
+    if (myVal.vt == VT_R4) ss << static_cast<double>(myVal.fltVal);
+    else if (myVal.vt == VT_R8) ss << static_cast<double>(myVal.dblVal);
+    else if (myVal.vt == VT_I1) ss << static_cast<int64_t>(myVal.cVal);
+    else if (myVal.vt == VT_I2) ss << static_cast<int64_t>(myVal.iVal);
+    else if (myVal.vt == VT_I4) ss << static_cast<int64_t>(myVal.lVal);
+    else if (myVal.vt == VT_I8) ss << static_cast<int64_t>(myVal.llVal);
+    else if (myVal.vt == VT_UI1) ss << static_cast<int64_t>(myVal.bVal);
+    else if (myVal.vt == VT_UI2) ss << static_cast<int64_t>(myVal.uiVal);
+    else if (myVal.vt == VT_UI4) ss << static_cast<int64_t>(myVal.ulVal);
+    else if (myVal.vt == VT_UI8) ss << static_cast<int64_t>(myVal.ullVal);
+    else if (myVal.vt == VT_INT) ss << static_cast<int64_t>(myVal.intVal);
+    else if (myVal.vt == VT_UINT) ss << static_cast<int64_t>(myVal.uintVal);
+    else if (myVal.vt == VT_LPSTR) ss << std::string(myVal.pcVal);
+    else if (myVal.vt == VT_LPWSTR) ss << wstringToUTF8(std::wstring(myVal.bstrVal));
+    else if (myVal.vt == VT_BSTR) ss << wstringToUTF8(std::wstring(myVal.bstrVal));
+    else ss << "unsupported data type";
+
+    return ss.str();
+}
+
 std::wstring inline outputVariant(const std::wstring &name, const VARIANT &myVal, const FILETIME &ft,const WORD quality) {
     std::wstringstream ws;
 
@@ -279,7 +373,7 @@ std::wstring inline outputVariant(const std::wstring &name, const VARIANT &myVal
             << std::setw(10) << std::right << L"Item: " << std::setw(30) << std::left << name
             << std::setw(10) << std::right << L" Value: " << std::setw(30) << std::left << outputVariant.str()
             << std::setw(10) << std::right << L" Quality: " << std::setw(30) << std::left <<
-            opcQualityToString(quality);
+            opcQualityToWstring(quality);
 
     std::wstring hrAsWString = ws.str();
     return hrAsWString;
@@ -297,15 +391,30 @@ inline uint64_t FileTimeToUint64(FILETIME ft) {
     return time_union.as_ulonglong;
 }
 
+// Function to convert FILETIME to std::chrono::system_clock::time_point
+inline std::chrono::system_clock::time_point FileTimeToChrono(const FILETIME& ft)
+{
+    // Copy the FILETIME struct to a ULARGE_INTEGER union to make it easier to work with.
+    ULARGE_INTEGER ull;
+    ull.LowPart = ft.dwLowDateTime;
+    ull.HighPart = ft.dwHighDateTime;
 
-inline std::wstring GUIDToString(const GUID& guid) {
+    // Convert to microseconds and adjust to Unix epoch.
+    auto microseconds = ull.QuadPart / 10;
+    auto unixEpochTime = microseconds - 11644473600000000ULL; // FILETIME epoch (1601) to Unix epoch (1970)
+
+    return std::chrono::system_clock::time_point(std::chrono::microseconds(unixEpochTime));
+}
+
+inline std::string GUIDToUTF8(const GUID& guid) {
     wchar_t guidString[39]; // GUID string format is 38 characters plus null terminator
     int result = StringFromGUID2(guid, guidString, ARRAYSIZE(guidString));
     if (result == 0) {
-        // Handle error, if conversion fails, return an empty string
-        return L"";
+        if(easyopcda::logToDefault)
+            spdlog::error("unable to print GUID, error: {}", hresultToUTF8(result));
+        return "";
     }
-    return std::wstring(guidString);
+    return wstringToUTF8(std::wstring(guidString));
 }
 
 inline bool stringToGUID(const std::wstring& guidString, GUID& guid) {

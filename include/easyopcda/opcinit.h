@@ -20,28 +20,37 @@
 #include "easyopcda.h"
 #include "OPCClient.h"
 
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/ostream_sink.h"
+
 void listDA20Servers(COSERVERINFO *serverInfo, bool localhost, std::map<std::wstring, CLSID> &progidClsidMap);
 
 class OPCInit
 {
 private:
     bool error;
-    std::wstring messageString;
+    std::stringstream ss;
+    std::shared_ptr<spdlog::sinks::ostream_sink_mt> ss_sink;
+    std::shared_ptr<spdlog::logger> logger;
+
 
     OPCClient * mClient;
-    ASyncCallback mCallbackFunc;
+    easyopcda::ASyncCallback mCallbackFunc;
 public:
-    OPCInit(bool multiThreaded, ASyncCallback func);
+    explicit OPCInit(easyopcda::ASyncCallback func);
     ~OPCInit();
 
     bool isError() {return error;}
-    std::wstring lastMessage() {
-        if(messageString.size()>10000) messageString.resize(10000);
-        return messageString;
+    std::string lastMessage() {
+        auto rv = ss.str();
+        ss.clear();
+        return rv;
     }
 
     OPCClient* getClient();
 };
+
+
 
 
 #endif //OPCINIT_H

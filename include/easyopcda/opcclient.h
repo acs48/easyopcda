@@ -21,7 +21,10 @@
 
 #include "easyopcda.h"
 #include "opcda.h"
-#include "opcGroup.h"
+#include "opcgroup.h"
+
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/ostream_sink.h"
 
 #include <string>
 #include <map>
@@ -31,7 +34,9 @@ class OPCClient
 {
 private:
     bool error;
-    std::wstring messageString;
+    std::stringstream ss;
+    std::shared_ptr<spdlog::sinks::ostream_sink_mt> ss_sink;
+    std::shared_ptr<spdlog::logger> logger;
 
     std::wstring hostName;
     std::wstring domain;
@@ -43,19 +48,19 @@ private:
     COAUTHIDENTITY authIdent;
     bool identitySet;
 
-    std::map<std::wstring, CLSID> progIDtoCLSIDmap;
+    std::map<std::wstring, CLSID> progIDtoCLSIDMap;
 
     std::wstring serverProgID;
-    CLSID serverclsid;
+    CLSID serverCLSID;
 
     CComPtr<IOPCServer> pOPCServer;
 
     std::map<std::wstring, OPCGroup*> groups;
 
-    ASyncCallback mCallbackFunc;
+    easyopcda::ASyncCallback mCallbackFunc;
 
 public:
-    explicit OPCClient(ASyncCallback func);
+    explicit OPCClient(easyopcda::ASyncCallback func);
     ~OPCClient();
 
     void setOPCServerHostAndUser(std::wstring hostName,const std::wstring& domain, const std::wstring& user, const std::wstring& password);
@@ -67,12 +72,11 @@ public:
     void removeGroup(std::wstring);
 
     bool isError() const {return error;}
-    std::wstring lastMessage() {
-        if(messageString.size()>10000) messageString.resize(10000);
-        return messageString;
+    std::string lastMessage() {
+        auto rv = ss.str();
+        ss.clear();
+        return rv;
     }
-
-
 };
 
 #endif //OPC_CLIENT_H

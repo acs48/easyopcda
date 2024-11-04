@@ -16,18 +16,18 @@
 
 
 #include "easyopcda/easyopcda.h"
-#include "easyopcda/opcGroup.h"
+#include "easyopcda/opcgroup.h"
 #include "easyopcda/opcda.h"
 
 #include"spdlog/spdlog.h"
 
 #include <string>
-#include <iostream>
 #include <utility>
 
-OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDENTITY *pAuthIdent, DWORD reqUpdRate, ASyncCallback func) {
-    std::wstringstream wss;
-
+OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDENTITY *pAuthIdent, DWORD reqUpdRate, easyopcda::ASyncCallback func)
+: ss_sink(std::make_shared<spdlog::sinks::ostream_sink_mt>(ss)),
+  logger(std::make_shared<spdlog::logger>("easyopcda", ss_sink))
+{
     error = false;
     myOPCServer = pOPCServer.p;
 
@@ -47,8 +47,7 @@ OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDE
 
     if (pOPCServer == nullptr) {
         error = true;
-        spdlog::error("invalid OPC server");
-        messageString = L"invalid OPC server";
+        ERROR_LOG("invalid OPC server");
         return;
     }
 
@@ -70,7 +69,7 @@ OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDE
 
     auto tid = std::this_thread::get_id();
     auto hid = std::hash<std::thread::id>{}(tid);
-    spdlog::debug("Thread building OPC group: {}", hid);
+    DEBUG_LOG("Thread building OPC group: {}", hid);
 
     hr = pOPCServer->AddGroup(myName.c_str(), //	una stringa con il nome del gruppo?
                               FALSE, //	attivo o no??
@@ -86,9 +85,7 @@ OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDE
     if (FAILED(hr)) {
         groupMgr = nullptr;
         error = true;
-        spdlog::error("function AddGroup of OPCServer instance failed. Error: {}", hresultToUTF8(hr));
-        wss << L"function AddGroup of OPCServer instance failed. Error: " << hresultTowstring(hr) << std::endl;
-        messageString = wss.str();
+        ERROR_LOG("function AddGroup of OPCServer instance failed. Error: {}", hresultToUTF8(hr));
         return;
     }
     HRESULT hrAuth = CoSetProxyBlanket(
@@ -102,9 +99,7 @@ OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDE
         EOAC_NONE // additional capabilities
     );
     if (FAILED(hrAuth)) {
-        spdlog::error("CoSetProxyBlanket failed on the IOPCGroupStateMgt with error ", hresultToUTF8(hrAuth));
-        wss << L"CoSetProxyBlanket failed on the IOPCGroupStateMgt with error " << hresultTowstring(hrAuth) << std::endl;
-        messageString = wss.str();
+        ERROR_LOG("CoSetProxyBlanket failed on the IOPCGroupStateMgt with error ", hresultToUTF8(hrAuth));
         //return;
     }
 
@@ -113,9 +108,7 @@ OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDE
     if (FAILED(hr)) {
         itemMgr = nullptr;
         error = true;
-        spdlog::error("QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCItemMgt. Error: {}", hresultToUTF8(hr));
-        wss << L"QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCItemMgt. Error: " << hresultTowstring(hr) << std::endl;
-        messageString = wss.str();
+        ERROR_LOG("QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCItemMgt. Error: {}", hresultToUTF8(hr));
         return;
     } else {
         HRESULT hrAuth = CoSetProxyBlanket(
@@ -129,18 +122,14 @@ OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDE
             EOAC_NONE // additional capabilities
         );
         if (FAILED(hrAuth)) {
-            spdlog::error("CoSetProxyBlanket failed on the IOPCItemMgt with error: {}", hresultToUTF8(hrAuth));
-            wss << L"CoSetProxyBlanket failed on the IOPCItemMgt with error " << hresultTowstring(hrAuth) << std::endl;
-            messageString = wss.str();
-            //return;
+            ERROR_LOG("CoSetProxyBlanket failed on the IOPCItemMgt with error: {}", hresultToUTF8(hrAuth));
         }
     }
 
     hr = groupMgr->QueryInterface(IID_IOPCSyncIO, (void **) &syncIO);
     if (FAILED(hr)) {
         syncIO = nullptr;
-        spdlog::error("QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCSyncIO. Error: {}", hresultToUTF8(hr));
-        wss << L"QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCSyncIO. Error: "<< hresultTowstring(hr) << std::endl;
+        ERROR_LOG("QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCSyncIO. Error: {}", hresultToUTF8(hr));
     } else {
         HRESULT hrAuth = CoSetProxyBlanket(
             syncIO, // the proxy to set
@@ -153,10 +142,7 @@ OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDE
             EOAC_NONE // additional capabilities
         );
         if (FAILED(hrAuth)) {
-            spdlog::error("CoSetProxyBlanket failed on the IOPCSyncIO with error: {}", hresultToUTF8(hrAuth));
-            wss << L"CoSetProxyBlanket failed on the IOPCSyncIO with error " << hresultTowstring(hrAuth) << std::endl;
-            messageString = wss.str();
-            //return;
+            ERROR_LOG("CoSetProxyBlanket failed on the IOPCSyncIO with error: {}", hresultToUTF8(hrAuth));
         }
     }
 
@@ -164,8 +150,7 @@ OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDE
     hr = groupMgr->QueryInterface(IID_IOPCSyncIO2, (void **) &syncIO2);
     if (FAILED(hr)) {
         syncIO2 = nullptr;
-        wss << L"QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCSyncIO2. Error: " << hresultTowstring(hr) << std::endl;
-        spdlog::error("QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCSyncIO2. Error: {}", hresultToUTF8(hr));
+        ERROR_LOG("QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCSyncIO2. Error: {}", hresultToUTF8(hr));
     } else {
         HRESULT hrAuth = CoSetProxyBlanket(
             syncIO2, // the proxy to set
@@ -178,10 +163,7 @@ OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDE
             EOAC_NONE // additional capabilities
         );
         if (FAILED(hrAuth)) {
-            spdlog::error("CoSetProxyBlanket failed on the IOPCSyncIO2 with error: {}", hresultToUTF8(hrAuth));
-            wss << L"CoSetProxyBlanket failed on the IOPCSyncIO2 with error " << hresultTowstring(hrAuth) << std::endl;
-            messageString = wss.str();
-            //return;
+            ERROR_LOG("CoSetProxyBlanket failed on the IOPCSyncIO2 with error: {}", hresultToUTF8(hrAuth));
         }
     }
 
@@ -204,15 +186,11 @@ OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDE
             EOAC_NONE // additional capabilities
         );
         if (FAILED(hrAuth)) {
-            spdlog::error("CoSetProxyBlanket failed on the IOPCAsyncIO with error: {}", hresultToUTF8(hrAuth));
-            wss << L"CoSetProxyBlanket failed on the IOPCAsyncIO with error " << hresultTowstring(hrAuth) << std::endl;
-            messageString = wss.str();
-            //return;
+            ERROR_LOG("CoSetProxyBlanket failed on the IOPCAsyncIO with error: {}", hresultToUTF8(hrAuth));
         }
     } else {
         asyncIO = nullptr;
-        spdlog::error("QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCAsyncIO. Error: {}", hresultToUTF8(hr1));
-        wss <<  L"QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCAsyncIO. Error: " << hresultTowstring(hr1) << std::endl;
+        ERROR_LOG("QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCAsyncIO. Error: {}", hresultToUTF8(hr1));
     }
 
     HRESULT hr2 = groupMgr->QueryInterface(IID_IOPCAsyncIO2, (void **) &asyncIO2);
@@ -230,15 +208,11 @@ OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDE
             EOAC_NONE // additional capabilities
         );
         if (FAILED(hrAuth)) {
-            spdlog::error("CoSetProxyBlanket failed on the IOPCAsyncIO2 with error: {}", hresultToUTF8(hrAuth));
-            wss << L"CoSetProxyBlanket failed on the IOPCAsyncIO2 with error " << hresultTowstring(hrAuth) << std::endl;
-            messageString = wss.str();
-            //return;
+            ERROR_LOG("CoSetProxyBlanket failed on the IOPCAsyncIO2 with error: {}", hresultToUTF8(hrAuth));
         }
     } else {
         asyncIO2 = nullptr;
-        spdlog::error("QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCAsyncIO2. Error: {}", hresultToUTF8(hr2));
-        wss << L"QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCAsyncIO2. Error: " << hresultTowstring(hr2) << std::endl;
+        ERROR_LOG("QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCAsyncIO2. Error: {}", hresultToUTF8(hr2));
     }
 
     HRESULT hr3 = groupMgr->QueryInterface(IID_IOPCAsyncIO3, (void **) &asyncIO3);
@@ -256,15 +230,11 @@ OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDE
             EOAC_NONE // additional capabilities
         );
         if (FAILED(hrAuth)) {
-            spdlog::error("CoSetProxyBlanket failed on the IOPCAsyncIO3 with error: {}", hresultToUTF8(hrAuth));
-            wss << L"CoSetProxyBlanket failed on the IOPCAsyncIO3 with error " << hresultTowstring(hrAuth) << std::endl;
-            messageString = wss.str();
-            //return;
+            ERROR_LOG("CoSetProxyBlanket failed on the IOPCAsyncIO3 with error: {}", hresultToUTF8(hrAuth));
         }
     } else {
         asyncIO3 = nullptr;
-        spdlog::error("QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCAsyncIO3. Error: {}", hresultToUTF8(hr3));
-        wss << L"QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCAsyncIO3. Error: " << hresultTowstring(hr3) << std::endl;
+        ERROR_LOG("QueryInterFace on instance of IID_IOPCGroupStateMgt could not retrieve instance of IID_IOPCAsyncIO3. Error: {}", hresultToUTF8(hr3));
     }
 
     if (daSpec20 || daSpec30) {
@@ -281,10 +251,7 @@ OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDE
                 EOAC_NONE // additional capabilities
             );
             if (FAILED(hrAuth)) {
-                spdlog::error("CoSetProxyBlanket failed on the IConnectionPointContainer with error: {}", hresultToUTF8(hrAuth));
-                wss << L"CoSetProxyBlanket failed on the IConnectionPointContainer with error " << hresultTowstring(hrAuth) << std::endl;
-                messageString = wss.str();
-                //return;
+                ERROR_LOG("CoSetProxyBlanket failed on the IConnectionPointContainer with error: {}", hresultToUTF8(hrAuth));
             }
 
             result = connectionPointContainer->FindConnectionPoint(IID_IOPCDataCallback,&asyncDataCallbackConnectionPoint);
@@ -300,10 +267,7 @@ OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDE
                     EOAC_NONE // additional capabilities
                     );
                 if (FAILED(hrAuth)) {
-                    spdlog::error("CoSetProxyBlanket failed on the IConnectionPoint with error: {}", hresultToUTF8(hrAuth));
-                    wss << L"CoSetProxyBlanket failed on the IConnectionPoint with error " << hresultTowstring(hrAuth) << std::endl;
-                    messageString = wss.str();
-                    //return;
+                    ERROR_LOG("CoSetProxyBlanket failed on the IConnectionPoint with error: {}", hresultToUTF8(hrAuth));
                 }
 
                 result = asyncDataCallbackConnectionPoint->Advise((IUnknown *) ((IOPCDataCallback *) this),&asyncCallbackHandle);
@@ -318,8 +282,7 @@ OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDE
                     }
                     asyncDataCallbackConnectionPoint = nullptr;
                     asyncCallbackHandle = 0;
-                    spdlog::error("Failed to retrieve handle of IOPCDataCallback from class IID_IOPCDataCallback. Cannot implement async read/write connection. Error: {}", hresultToUTF8(result));
-                    wss << L"Failed to retrieve handle of IOPCDataCallback from class IID_IOPCDataCallback. Cannot implement async read/write connection. Error: " << hresultTowstring(result) << std::endl;
+                    ERROR_LOG("Failed to retrieve handle of IOPCDataCallback from class IID_IOPCDataCallback. Cannot implement async read/write connection. Error: {}", hresultToUTF8(result));
                 }
             } else {
                 if(asyncIO2) {
@@ -332,8 +295,7 @@ OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDE
                 }
                 asyncDataCallbackConnectionPoint = nullptr;
                 asyncCallbackHandle = 0;
-                spdlog::error("Failed to retrieve interface pointer IID_IOPCDataCallback from class IID_IConnectionPointContainer. Cannot implement async read/write connection. Error: {}", hresultToUTF8(result));
-                wss << L"Failed to retrieve interface pointer IID_IOPCDataCallback from class IID_IConnectionPointContainer. Cannot implement async read/write connection. Error: " << hresultTowstring(result) << std::endl;
+                ERROR_LOG("Failed to retrieve interface pointer IID_IOPCDataCallback from class IID_IConnectionPointContainer. Cannot implement async read/write connection. Error: {}", hresultToUTF8(result));
             }
 
             result = connectionPointContainer->FindConnectionPoint(IID_IOPCShutdown, &shutdownConnectionPoint);
@@ -349,35 +311,33 @@ OPCGroup::OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDE
                     EOAC_NONE // additional capabilities
                 );
                 if (FAILED(hrAuth)) {
-                    spdlog::error("CoSetProxyBlanket failed on the IConnectionPoint with error: {}", hresultToUTF8(hrAuth));
-                    wss << L"CoSetProxyBlanket failed on the IConnectionPoint with error " << hresultTowstring(hrAuth) << std::endl;
-                    messageString = wss.str();
-                    //return;
+                    ERROR_LOG("CoSetProxyBlanket failed on the IConnectionPoint with error: {}", hresultToUTF8(hrAuth));
                 }
 
                 result = shutdownConnectionPoint->Advise((IUnknown *) ((IOPCShutdown *) this), &shutdownHandle);
                 if (FAILED(result)) {
                     shutdownConnectionPoint = nullptr;
                     shutdownHandle = 0;
-                    spdlog::error("Failed to retrieve handle of IOPCShutdown from class IID_IOPCShutdown. Cannot implement async shutdown connection. Error: {}",hresultToUTF8(result));
-                    wss << L"Failed to retrieve handle of IOPCShutdown from class IID_IOPCShutdown. Cannot implement async shutdown connection. Error: " << hresultTowstring(result) << std::endl;
+                    ERROR_LOG("Failed to retrieve handle of IOPCShutdown from class IID_IOPCShutdown. Cannot implement async shutdown connection. Error: {}",hresultToUTF8(result));
                 }
             } else {
                 asyncDataCallbackConnectionPoint = nullptr;
                 shutdownConnectionPoint = nullptr;
-                spdlog::error("Failed to retrieve interface pointer IID_IOPCShutdown from class IID_IConnectionPointContainer. Cannot implement async shutdown connection. Error: {}", hresultToUTF8(result));
-                wss << L"Failed to retrieve interface pointer IID_IOPCShutdown from class IID_IConnectionPointContainer. Cannot implement async shutdown connection. Error: " << hresultTowstring(result) << std::endl;
+                ERROR_LOG("Failed to retrieve interface pointer IID_IOPCShutdown from class IID_IConnectionPointContainer. Cannot implement async shutdown connection. Error: {}", hresultToUTF8(result));
             }
         }
     }
-    messageString = wss.str();
 }
 
 
 OPCGroup::~OPCGroup() {
     asyncDisableAutoReadGroup();
 
-    auto copyIDs = clientServerTransactionID;
+    std::map<DWORD,DWORD> copyIDs;
+    {
+        std::lock_guard<std::mutex> stackLock(transactionMutex);
+        copyIDs = clientServerTransactionID;
+   }
 
     for (auto i = copyIDs.begin(); i != copyIDs.end(); ++i) {
         HRESULT hr;
@@ -385,16 +345,16 @@ OPCGroup::~OPCGroup() {
             hr = asyncIO3->Cancel2(i->second);
             if FAILED(hr) {
                 error = true;
-                spdlog::error("Call to asyncIO3->Cancel2 returned error: {}", hresultToUTF8(hr));
+                ERROR_LOG("Call to asyncIO3->Cancel2 returned error: {}", hresultToUTF8(hr));
             }
         } else if (asyncIO2) {
             hr = asyncIO2->Cancel2(i->second);
             if FAILED(hr) {
                 error = true;
-                spdlog::error("Call to asyncIO2->Read returned error: {}", hresultToUTF8(hr));
+                ERROR_LOG("Call to asyncIO2->Read returned error: {}", hresultToUTF8(hr));
             }
         } else {
-            spdlog::error("No async interfaces available (support only IID_IOPCAsyncIO2 and IID_IOPCAsyncIO3");
+            ERROR_LOG("No async interfaces available (support only IID_IOPCAsyncIO2 and IID_IOPCAsyncIO3");
             return;
         }
     }
@@ -402,7 +362,7 @@ OPCGroup::~OPCGroup() {
     if (myOPCServer) {
         HRESULT hr = myOPCServer->RemoveGroup(thisGroupHandle,TRUE);
         if FAILED(hr) {
-            spdlog::error("Call to IOPCSerer->RemoveGroup failed with error: {}", hresultToUTF8(hr));
+            ERROR_LOG("Call to IOPCSerer->RemoveGroup failed with error: {}", hresultToUTF8(hr));
         }
     }
     myOPCServer = nullptr;
@@ -417,10 +377,8 @@ OPCGroup::~OPCGroup() {
 
 
 void OPCGroup::addItems(std::vector<std::wstring> &inputItems) {
-    std::wstringstream wss;
     if (error) {
-        spdlog::error("OPC connection in error state. cannot accept further requests");
-        messageString = L"OPC connection in error state. cannot accept further requests";
+        ERROR_LOG("OPC connection in error state. cannot accept further requests");
         return;
     }
 
@@ -450,34 +408,28 @@ void OPCGroup::addItems(std::vector<std::wstring> &inputItems) {
 
     auto tid = std::this_thread::get_id();
     auto hid = std::hash<std::thread::id>{}(tid);
-    spdlog::debug("Thread adding OPC items: {}", hid);
+    DEBUG_LOG("Thread adding OPC items: {}", hid);
 
     hr = itemMgr->AddItems(itemDefs.size(), itemDefs.data(), &pAddResult, &pErrors);
     if SUCCEEDED(hr) {
         for (size_t i = 0; i < itemDefs.size(); i++) {
-            wss << L"Requested tag: " << itemNames[i] << " returned status: " << hresultTowstring(pErrors[i]) << std::endl;
-            spdlog::info("Requested tag: {} returned status: {}", wstring_to_utf8(itemNames[i]), hresultToUTF8((pErrors[i])));
+            INFO_LOG("Requested tag: {} returned status: {}", wstringToUTF8(itemNames[i]), hresultToUTF8((pErrors[i])));
             itemsMap[itemNames[i]].itemRes = pAddResult[i];
             itemsMap[itemNames[i]].itemErr = pErrors[i];
             serverItemHandlesMap[pAddResult[i].hServer] = itemNames[i];
         }
     } else {
         error = true;
-        spdlog::error("Call to AddItems returned error: {}", hresultToUTF8(hr));
-        wss << L"Call to AddItems returned error: " << hresultTowstring(hr) << std::endl;
+        ERROR_LOG("Call to AddItems returned error: {}", hresultToUTF8(hr));
     }
 
     if (pAddResult) CoTaskMemFree(pAddResult);
     if (pErrors) CoTaskMemFree(pErrors);
-
-    messageString = wss.str();
 }
 
 void OPCGroup::validateItems(std::vector<std::wstring> &inputItems) {
-    std::wstringstream wss;
     if (error) {
-        spdlog::error("OPC connection in error state. cannot accept further requests");
-        messageString = L"OPC connection in error state. cannot accept further requests";
+        ERROR_LOG("OPC connection in error state. cannot accept further requests");
         return;
     }
 
@@ -509,16 +461,14 @@ void OPCGroup::validateItems(std::vector<std::wstring> &inputItems) {
     hr = itemMgr->ValidateItems(itemDefs.size(), itemDefs.data(), false, &pAddResult, &pErrors);
     if SUCCEEDED(hr) {
         for (auto i = 0; i < itemDefs.size(); i++) {
-            wss << L"Requested tag: " << itemNames[i] << " returned status: " << hresultTowstring(pErrors[i]) << std::endl;
-            spdlog::info("Requested tag: {} returned status: {}", wstring_to_utf8(itemNames[i]), hresultToUTF8(pErrors[i]));
+            INFO_LOG("Requested tag: {} returned status: {}", wstringToUTF8(itemNames[i]), hresultToUTF8(pErrors[i]));
             if (itemsMap.count(itemNames[i]) > 0) {
                 itemsMap[itemNames[i]].itemErr = pErrors[i];
             }
         }
     } else {
         error = true;
-        spdlog::error("Call to ValidateItems returned error: {]", hresultToUTF8(hr));
-        wss << L"Call to ValidateItems returned error: " << hresultTowstring(hr) << std::endl;
+        ERROR_LOG("Call to ValidateItems returned error: {]", hresultToUTF8(hr));
     }
 
     if (pAddResult) {
@@ -529,25 +479,20 @@ void OPCGroup::validateItems(std::vector<std::wstring> &inputItems) {
     }
     if (pErrors) CoTaskMemFree(pErrors);
 
-    messageString = wss.str();
 }
 
 void OPCGroup::removeItems(std::vector<std::wstring> &items) {
     if (error) {
-        spdlog::error("OPC connection in error state. cannot accept further requests");
-        messageString = L"OPC connection in error state. cannot accept further requests";
+        ERROR_LOG("OPC connection in error state. cannot accept further requests");
         return;
     }
 
-    spdlog::error("not yet implemented");
-    messageString = L"not yet implemented";
+    ERROR_LOG("not yet implemented");
 }
 
 void OPCGroup::syncReadGroup() {
-    std::wstringstream wss;
     if (error) {
-        spdlog::error("OPC connection in error state. cannot accept further requests");
-        messageString = L"OPC connection in error state. cannot accept further requests";
+        ERROR_LOG("OPC connection in error state. cannot accept further requests");
         return;
     }
 
@@ -565,21 +510,19 @@ void OPCGroup::syncReadGroup() {
 
     auto tid = std::this_thread::get_id();
     auto hid = std::hash<std::thread::id>{}(tid);
-    spdlog::debug("Thread sync reading group: {}",hid);
+    DEBUG_LOG("Thread sync reading group: {}",hid);
 
     HRESULT hr;
     if (syncIO2) {
         hr = syncIO2->Read(OPC_DS_CACHE, itemHandles.size(), itemHandles.data(), &pItemValues, &pErrors);
-        // we can use ReadMaxAge here, try
+        // we can use ReadMaxAge here
     } else if (syncIO) {
         hr = syncIO->Read(OPC_DS_CACHE, itemHandles.size(), itemHandles.data(), &pItemValues, &pErrors);
     } else {
-        spdlog::error("No sync read interfaces available! operation not performed");
-        messageString = L"No sync read interfaces available! operation not performed";
+        ERROR_LOG("No sync read interfaces available! operation not performed");
         return;
     }
     if SUCCEEDED(hr) {
-
         std::vector<OPCHANDLE> clientHandles(itemHandles.size());
         std::vector<VARIANT> VARIANTValues(itemHandles.size());
         std::vector<WORD> qualityValues(itemHandles.size());
@@ -592,23 +535,29 @@ void OPCGroup::syncReadGroup() {
             timeValues[i] = pItemValues[i].ftTimeStamp;
             errors[i]=pErrors[i];
         }
-        wss << L"Sync Read processed " << itemHandles.size() << L" items" << std::endl;
-        spdlog::info("Sync Read processed {} items",itemHandles.size());
+        INFO_LOG("Sync Read processed {} items",itemHandles.size());
         internalAsyncCallback(itemHandles.size(),clientHandles.data(), VARIANTValues.data(), qualityValues.data(),timeValues.data(),errors.data());
 
         for (auto i = 0; i < itemHandles.size(); i++) {
             if FAILED(pErrors[i]) {
                 if (clientItemHandlesMap.count(pItemValues[i].hClient)>0)
-                    wss << L"Call to SyncIO returned error for specific item: " << clientItemHandlesMap[pItemValues[i].hClient] << L":" << hresultTowstring(hr) << std::endl;
+                   WARN_LOG("Call to SyncIO returned error for specific item: {:<20}: {}", wstringToUTF8(clientItemHandlesMap[pItemValues[i].hClient]), hresultToUTF8(hr));
             } else {
                 if (clientItemHandlesMap.count(pItemValues[i].hClient)>0)
-                    wss << outputVariant(clientItemHandlesMap[pItemValues[i].hClient], pItemValues[i].vDataValue, pItemValues[i].ftTimeStamp,pItemValues[i].wQuality) << std::endl;
+                    INFO_LOG(
+                        "group: {:<10}item: {:<20}time: {:<30}\tvalue: {:<20}\tquality: {:<15}\terror: {:<15}",
+                        wstringToUTF8(myName),
+                        wstringToUTF8(clientItemHandlesMap[pItemValues[i].hClient]),
+                        FileTimeToChrono(pItemValues[i].ftTimeStamp),
+                        variant2UTF8(pItemValues[i].vDataValue),
+                        opcQualityToUTF8(pItemValues[i].wQuality),
+                        hresultToUTF8(pErrors[i])
+                        );
             }
         }
     } else {
         error = true;
-        spdlog::error("Call to SyncIO returned error: {}", hresultToUTF8(hr));
-        wss << L"Call to SyncIO returned error: " << hresultTowstring(hr) << std::endl;
+        ERROR_LOG("Call to SyncIO returned error: {}", hresultToUTF8(hr));
     }
 
 
@@ -617,22 +566,17 @@ void OPCGroup::syncReadGroup() {
             hr = VariantClear(&(pItemValues[i].vDataValue));
             if FAILED(hr) {
                 error = true;
-                spdlog::error("Call to VariantClear returned error: {}", hresultToUTF8(hr));
-                wss << L"Call to VariantClear returned error: " << hresultTowstring(hr) << std::endl;
+                ERROR_LOG("Call to VariantClear returned error: {}", hresultToUTF8(hr));
             }
         }
         CoTaskMemFree(pItemValues);
     }
     if (pErrors != NULL) CoTaskMemFree(pErrors);
-    wss<<L"Sync Read completed and data published" << std::endl;
-    messageString = wss.str();
 }
 
 void OPCGroup::asyncReadGroup() {
-    std::wstringstream wss;
     if (error) {
-        spdlog::error("OPC connection in error state. cannot accept further requests");
-        messageString = L"OPC connection in error state. cannot accept further requests";
+        ERROR_LOG("OPC connection in error state. cannot accept further requests");
         return;
     }
 
@@ -649,97 +593,95 @@ void OPCGroup::asyncReadGroup() {
     }
 
     HRESULT hr;
-    while (clientServerTransactionID.count(++lastClientTransactionID) != 0);
+    {
+        std::lock_guard<std::mutex> stackLock(transactionMutex);
+        while (clientServerTransactionID.count(++lastClientTransactionID) != 0);
+    }
 
     auto tid = std::this_thread::get_id();
     auto hid = std::hash<std::thread::id>{}(tid);
-    spdlog::debug("Thread async reading group: {}",hid);
+    DEBUG_LOG("Thread async reading group: {}",hid);
 
     if (asyncIO3) {
         hr = asyncIO3->Read(itemHandles.size(), itemHandles.data(), lastClientTransactionID, &serverCancelID, &pErrors);
         if FAILED(hr) {
             error = true;
-            spdlog::error("Call to asyncIO3->Read returned error: {}", hresultToUTF8(hr));
-            wss << L"Call to asyncIO3->Read returned error: " << hresultTowstring(hr) << std::endl;
-            messageString = wss.str();
+            ERROR_LOG("Call to asyncIO3->Read returned error: {}", hresultToUTF8(hr));
             return;
         }
     } else if (asyncIO2) {
         hr = asyncIO2->Read(itemHandles.size(), itemHandles.data(), lastClientTransactionID, &serverCancelID, &pErrors);
         if FAILED(hr) {
             error = true;
-            spdlog::error("Call to asyncIO2->Read returned error: {}", hresultToUTF8(hr));
-            wss << L"Call to asyncIO2->Read returned error: " << hresultTowstring(hr) << std::endl;
-            messageString = wss.str();
+            ERROR_LOG("Call to asyncIO2->Read returned error: {}", hresultToUTF8(hr));
             return;
         }
     } else {
-        spdlog::error("No async interfaces available (support only IID_IOPCAsyncIO2 and IID_IOPCAsyncIO3");
-        wss << L"No async interfaces available (support only IID_IOPCAsyncIO2 and IID_IOPCAsyncIO3" << std::endl;
-        messageString = wss.str();
+        ERROR_LOG("No async interfaces available (support only IID_IOPCAsyncIO2 and IID_IOPCAsyncIO3");
         return;
     }
 
-    clientServerTransactionID[lastClientTransactionID] = serverCancelID;
+    {
+        std::lock_guard<std::mutex> stackLock(transactionMutex);
+        clientServerTransactionID[lastClientTransactionID] = serverCancelID;
+    }
+
+    INFO_LOG("Async Read processed {} items",itemHandles.size());
 
     if (!error) {
         if (pErrors) {
             for (auto i = 0; i < itemHandles.size(); i++) {
-                wss << L"Async Read requested tag: " << itemNames[i] << L" returned status: " << hresultTowstring(pErrors[i]) << std::endl;
+                if(FAILED(pErrors[i]))
+                    WARN_LOG("Async Read requested tag: {:<20} returned status: {}", wstringToUTF8(itemNames[i]), hresultToUTF8(pErrors[i]));
             }
         }
     }
 
     if (pErrors != NULL) CoTaskMemFree(pErrors);
-    messageString = wss.str();
 }
 
 void OPCGroup::syncReadItems(std::vector<std::wstring> &items) {
     if (error) {
-        messageString = L"OPC connection in error state. cannot accept further requests";
-        spdlog::error("OPC connection in error state. cannot accept further requests");
+        ERROR_LOG("OPC connection in error state. cannot accept further requests");
         return;
     }
-    spdlog::error("not yet implemented");
-    messageString = L"not yet implemented";
+    ERROR_LOG("not yet implemented");
 }
 
 void OPCGroup::syncWriteItems(std::vector<std::wstring> &items, std::vector<double> values) {
     if (error) {
-        messageString = L"OPC connection in error state. cannot accept further requests";
-        spdlog::error("OPC connection in error state. cannot accept further requests");
+        ERROR_LOG("OPC connection in error state. cannot accept further requests");
         return;
     }
-    spdlog::error("not yet implemented");
-    messageString = L"not yet implemented";
+    ERROR_LOG("not yet implemented");
 }
 
 // implementation of DCOM interfaces
 STDMETHODIMP OPCGroup::QueryInterface(REFIID iid, LPVOID *ppInterface) {
     auto tid = std::this_thread::get_id();
     auto hid = std::hash<std::thread::id>{}(tid);
-    spdlog::debug("Queryinterface called on OPCGroup. Thread running QueryInterface: {}",hid);
+    DEBUG_LOG("Queryinterface called on OPCGroup. Thread running QueryInterface: {}",hid);
 
     if (!ppInterface) {
         return E_POINTER;
     }
 
-    spdlog::debug("Requested iid: {}", wstring_to_utf8(GUIDToString(iid)));
-    spdlog::debug("IID_IUnknown: ", wstring_to_utf8(GUIDToString(IID_IUnknown)));
-    spdlog::debug("IID_IOPCDataCallback: ", wstring_to_utf8( GUIDToString(IID_IOPCDataCallback)));
-    spdlog::debug("IID_IOPCShutdown: ", wstring_to_utf8(GUIDToString(IID_IOPCShutdown)));
+    DEBUG_LOG("Requested iid: {}", GUIDToUTF8(iid));
+    DEBUG_LOG("IID_IUnknown: ", GUIDToUTF8(IID_IUnknown));
+    DEBUG_LOG("IID_IOPCDataCallback: ", GUIDToUTF8(IID_IOPCDataCallback));
+    DEBUG_LOG("IID_IOPCShutdown: ", GUIDToUTF8(IID_IOPCShutdown));
 
     if (iid == IID_IUnknown) {
-        spdlog::debug("Queryinterface is passing IUnknown");
+        DEBUG_LOG("Queryinterface is passing IUnknown");
         *ppInterface = (IUnknown*)((IOPCDataCallback*)this);
     } else if (iid == IID_IOPCDataCallback) {
-        spdlog::debug("Queryinterface is passing IOPCDataCallback");
+        DEBUG_LOG("Queryinterface is passing IOPCDataCallback");
         *ppInterface = (IOPCDataCallback*)this;
     } else if (iid == IID_IOPCShutdown) {
-        spdlog::debug("Queryinterface is passing IOPCShutdown");
+        DEBUG_LOG("Queryinterface is passing IOPCShutdown");
         *ppInterface = (IOPCShutdown*)this;
     } else {
-        spdlog::debug("Queryinterface is passing null");
+        DEBUG_LOG("Queryinterface is passing null");
         *ppInterface = nullptr;
         return E_NOINTERFACE;
     } // else
@@ -775,10 +717,8 @@ HRESULT OPCGroup::internalAsyncCallback(DWORD count, OPCHANDLE *clientHandles, V
                 }
             }
             externalAsyncCallback(myName, {itemName, time[i], values[i], quality[i], error});
-            //std::wcout << outputVariant(itemName, values[i], time[i], quality[i]) << std::endl;
         } else {
-            spdlog::error("Invalid client item handle passed to async callback function");
-            messageString = L"Invalid client item handle passed to async callback function";
+            ERROR_LOG("Invalid client item handle passed to async callback function");
             return S_FALSE;
         }
     }
@@ -791,17 +731,21 @@ STDMETHODIMP OPCGroup::OnDataChange(DWORD transactionID, OPCHANDLE groupHandle, 
                                     DWORD count, OPCHANDLE *clientHandles, VARIANT *values, WORD *quality,
                                     FILETIME *time, HRESULT *errors) {
     if (isError()) {
-        spdlog::error("OPC connection in error state. cannot accept further requests");
-        messageString = L"OPC connection in error state. cannot accept further requests";
+        ERROR_LOG("OPC connection in error state. cannot accept further requests");
         return E_FAIL;
     }
-    if (clientServerTransactionID.count(transactionID) > 0) {
-        clientServerTransactionID.erase(transactionID);
+
+    {
+        std::lock_guard<std::mutex> stackLock(transactionMutex);
+        if (clientServerTransactionID.count(transactionID) > 0) {
+            clientServerTransactionID.erase(transactionID);
+        }
     }
+    cv.notify_all();
 
     auto tid = std::this_thread::get_id();
     auto hid = std::hash<std::thread::id>{}(tid);
-    spdlog::debug("Thread running OnDataChange: {}", hid);
+    DEBUG_LOG("Thread running OnDataChange: {}", hid);
 
     return internalAsyncCallback(count, clientHandles, values, quality, time, errors);
 }
@@ -811,55 +755,67 @@ STDMETHODIMP OPCGroup::OnReadComplete(DWORD transactionID, OPCHANDLE groupHandle
                                       DWORD count, OPCHANDLE *clientHandles, VARIANT *values, WORD *quality,
                                       FILETIME *time, HRESULT *errors) {
     if (isError()) {
-        spdlog::error("OPC connection in error state. cannot accept further requests");
-        messageString = L"OPC connection in error state. cannot accept further requests";
+        ERROR_LOG("OPC connection in error state. cannot accept further requests");
         return E_FAIL;
     }
-    if (clientServerTransactionID.count(transactionID) > 0) {
-        clientServerTransactionID.erase(transactionID);
+
+    {
+        std::lock_guard<std::mutex> stackLock(transactionMutex);
+        if (clientServerTransactionID.count(transactionID) > 0) {
+            clientServerTransactionID.erase(transactionID);
+        }
     }
+    cv.notify_all();
 
     auto tid = std::this_thread::get_id();
     auto hid = std::hash<std::thread::id>{}(tid);
-    spdlog::debug("Thread running OnReadComplete {}",hid);
+    DEBUG_LOG("Thread running OnReadComplete {}",hid);
 
     return internalAsyncCallback(count, clientHandles, values, quality, time, errors);
 }
 
 STDMETHODIMP OPCGroup::OnWriteComplete(DWORD transactionID, OPCHANDLE groupHandle, HRESULT masterError, DWORD count, OPCHANDLE *clientHandles, HRESULT *errors) {
     if (error) {
-        messageString = L"OPC connection in error state. cannot accept further requests";
-        spdlog::error("OPC connection in error state. cannot accept further requests");
+        ERROR_LOG("OPC connection in error state. cannot accept further requests");
         return E_FAIL;
     }
-    spdlog::error("not yet implemented");
-    messageString = L"not yet implemented";
+    ERROR_LOG("not yet implemented");
     return S_OK;
 }
 
 STDMETHODIMP OPCGroup::OnCancelComplete(DWORD transactionID, OPCHANDLE groupHandle) {
     if (isError()) {
-        spdlog::error("OPC connection in error state. cannot accept further requests");
-        messageString = L"OPC connection in error state. cannot accept further requests";
+        ERROR_LOG("OPC connection in error state. cannot accept further requests");
         return E_FAIL;
     }
-    if (clientServerTransactionID.count(transactionID) > 0) {
-        clientServerTransactionID.erase(transactionID);
+
+    {
+        std::lock_guard<std::mutex> stackLock(transactionMutex);
+        if (clientServerTransactionID.count(transactionID) > 0) {
+            clientServerTransactionID.erase(transactionID);
+        }
     }
+    cv.notify_all();
+
     return S_OK;
 }
 
+void OPCGroup::waitForTransactionsComplete() {
+    std::unique_lock<std::mutex> lock(transactionMutex);
+    if(!clientServerTransactionID.empty()) {
+        cv.wait(lock, [this] { return (this->clientServerTransactionID.empty()); } );
+    }
+}
+
 void OPCGroup::asyncEnableAutoReadGroup() {
-    std::wstringstream wss;
     if (error) {
-        spdlog::error("OPC connection in error state. cannot accept further requests");
-        messageString = L"OPC connection in error state. cannot accept further requests";
+        ERROR_LOG("OPC connection in error state. cannot accept further requests");
         return;
     }
 
     auto tid = std::this_thread::get_id();
     auto hid = std::hash<std::thread::id>{}(tid);
-    spdlog::error("Thread setting group and items active: {}", hid);
+    ERROR_LOG("Thread setting group and items active: {}", hid);
 
     if (groupMgr) {
         DWORD rUpRt;
@@ -867,8 +823,7 @@ void OPCGroup::asyncEnableAutoReadGroup() {
         HRESULT hr = groupMgr->SetState(nullptr, &rUpRt, &active, nullptr, nullptr, nullptr, nullptr);
         if FAILED(hr) {
             error = true;
-            messageString = L"Call to IOPCGroup->SetState failed";
-            spdlog::error("Call to IOPCGroup->SetState failed");
+            ERROR_LOG("Call to IOPCGroup->SetState failed");
             return;
         }
 
@@ -883,34 +838,29 @@ void OPCGroup::asyncEnableAutoReadGroup() {
             hr = itemMgr->SetActiveState(handles.size(), handles.data(), active, &pErrors);
             if FAILED(hr) {
                 error = true;
-                messageString = L"Call to IOPCItem->SetActiveState failed";
-                spdlog::error("Call to IOPCItem->SetActiveState failed");
+                ERROR_LOG("Call to IOPCItem->SetActiveState failed");
                 return;
             }
         }
         hr = groupMgr->SetState(nullptr, &rUpRt, &active, nullptr, nullptr, nullptr, nullptr);
         if FAILED(hr) {
             error = true;
-            messageString = L"Call to IOPCItem->SetState failed";
-            spdlog::error("Call to IOPCGroup->SetState failed");
+            ERROR_LOG("Call to IOPCGroup->SetState failed");
             return;
         }
     }
-    messageString = L"auto read successfully activated";
-    spdlog::info("auto read successfully activated");
-
+    INFO_LOG("group and items set active");
 }
 
 void OPCGroup::asyncDisableAutoReadGroup() {
     if (error) {
-        spdlog::debug("OPC connection in error state. cannot accept further requests");
-        messageString = L"OPC connection in error state. cannot accept further requests";
+        DEBUG_LOG("OPC connection in error state. cannot accept further requests");
         return;
     }
 
     auto tid = std::this_thread::get_id();
     auto hid = std::hash<std::thread::id>{}(tid);
-    spdlog::debug("Thread setting group and items inactive: {}", hid);
+    DEBUG_LOG("Thread setting group and items inactive: {}", hid);
 
     if (groupMgr) {
         DWORD rUpRt;
@@ -918,22 +868,18 @@ void OPCGroup::asyncDisableAutoReadGroup() {
         HRESULT hr = groupMgr->SetState(nullptr, &rUpRt, &active, nullptr, nullptr, nullptr, nullptr);
         if FAILED(hr) {
             error = true;
-            messageString = L"Call to IOPCItem->SetState failed";
-            spdlog::error("Call to IOPCItem->SetState failed. Error: {}", hresultToUTF8(hr));
+            ERROR_LOG("Call to IOPCItem->SetState failed. Error: {}", hresultToUTF8(hr));
             return;
         }
     }
-    messageString = L"auto read successfully deactivated";
-    spdlog::info("auto read successfully deactivated");
+    INFO_LOG("group set inactive");
 }
 
 STDMETHODIMP OPCGroup::ShutdownRequest(LPCWSTR szReason) {
     if (error) {
-        messageString = L"OPC connection in error state. cannot accept further requests";
-        spdlog::error("OPC connection in error state. cannot accept further requests");
+        ERROR_LOG("OPC connection in error state. cannot accept further requests");
         return E_FAIL;
     }
-    spdlog::error("not yet implemented");
-    messageString = L"not yet implemented";
+    ERROR_LOG("not yet implemented");
     return S_OK;
 }

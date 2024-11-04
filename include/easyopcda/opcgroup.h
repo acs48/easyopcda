@@ -25,9 +25,15 @@
 #include "opccomn.h"
 #include "opcda.h"
 
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/ostream_sink.h"
+#include "spdlog/fmt/chrono.h"
+
 #include <string>
 #include <vector>
 #include <map>
+#include <condition_variable>
+#include <mutex>
 
 struct itemDef {
     OPCITEMRESULT itemRes;
@@ -43,7 +49,9 @@ private:
     std::wstring myName;
 
     bool error;
-    std::wstring messageString;
+    std::stringstream ss;
+    std::shared_ptr<spdlog::sinks::ostream_sink_mt> ss_sink;
+    std::shared_ptr<spdlog::logger> logger;
 
     ATL::CComPtr<IOPCGroupStateMgt> groupMgr;
     ATL::CComPtr<IOPCItemMgt> itemMgr;
@@ -59,8 +67,10 @@ private:
     DWORD asyncCallbackHandle;
     DWORD shutdownHandle;
 
+    std::mutex transactionMutex;
     DWORD lastClientTransactionID;
     std::map<DWORD,DWORD> clientServerTransactionID;
+    std::condition_variable cv;
 
     OPCHANDLE thisGroupHandle;
 
@@ -69,12 +79,12 @@ private:
     OPCHANDLE lastClientItemHandle;
     std::map<OPCHANDLE,std::wstring> clientItemHandlesMap;
 
-    ASyncCallback externalAsyncCallback;
+    easyopcda::ASyncCallback externalAsyncCallback;
 
 public:
     DWORD realUpdateRate;
 
-    OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDENTITY *pAuthIdent, DWORD reqUpdRate, ASyncCallback func);
+    OPCGroup(std::wstring name, CComPtr<IOPCServer> &pOPCServer, COAUTHIDENTITY *pAuthIdent, DWORD reqUpdRate, easyopcda::ASyncCallback func);
     virtual ~OPCGroup();
 
     void validateItems(std::vector<std::wstring> &inputItems);
@@ -87,6 +97,7 @@ public:
     void syncReadItems(std::vector<std::wstring> &items);
     void syncReadGroup();
     void asyncReadGroup();
+    void waitForTransactionsComplete();
 
     // implementation of IUNKOWN
     STDMETHODIMP QueryInterface(REFIID iid, LPVOID *ppInterface) override;
@@ -108,11 +119,11 @@ public:
     void syncWriteItems(std::vector<std::wstring> &items, std::vector<double> values);
 
     bool isError() const {return error;}
-    std::wstring lastMessage() {
-        if(messageString.size()>10000) messageString.resize(10000);
-        return messageString;
+    std::string lastMessage() {
+        auto rv = ss.str();
+        ss.clear();
+        return rv;
     }
 };
-
 
 #endif //OPCGROUP_H
