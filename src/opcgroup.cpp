@@ -1,4 +1,4 @@
-// ******  easyopcda v0.1  ******
+// ******  easyopcda v0.2  ******
 // Copyright (C) 2024 Carlo Seghi. All rights reserved.
 // Author Carlo Seghi github.com/acs48.
 //
@@ -716,6 +716,15 @@ HRESULT OPCGroup::internalAsyncCallback(DWORD count, OPCHANDLE *clientHandles, V
                     error = errors[i];
                 }
             }
+            INFO_LOG(
+               "group: {:<10}item: {:<20}time: {:<30}\tvalue: {:<20}\tquality: {:<15}\terror: {:<15}",
+                wstringToUTF8(myName),
+                wstringToUTF8(itemName),
+                FileTimeToChrono(time[i]),
+                variant2UTF8(values[i]),
+                opcQualityToUTF8(quality[i]),
+                hresultToUTF8(error)
+                );
             externalAsyncCallback(myName, {itemName, time[i], values[i], quality[i], error});
         } else {
             ERROR_LOG("Invalid client item handle passed to async callback function");

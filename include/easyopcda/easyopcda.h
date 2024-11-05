@@ -1,4 +1,4 @@
-// ******  easyopcda v0.1  ******
+// ******  easyopcda v0.2  ******
 // Copyright (C) 2024 Carlo Seghi. All rights reserved.
 // Author Carlo Seghi github.com/acs48.
 //
@@ -34,10 +34,10 @@
 #include <chrono>
 
 
-#define DEBUG_LOG(...) if(easyopcda::logToDefault)spdlog::debug(__VA_ARGS__);if(easyopcda::logToClass){logger->debug(__VA_ARGS__);if(ss.str().size()>10240)ss.clear();}
-#define INFO_LOG(...)  if(easyopcda::logToDefault)spdlog::info(__VA_ARGS__); if(easyopcda::logToClass){logger->info(__VA_ARGS__);if(ss.str().size()>10240)ss.clear();}
-#define WARN_LOG(...) if(easyopcda::logToDefault)spdlog::warn(__VA_ARGS__);if(easyopcda::logToClass){logger->warn(__VA_ARGS__);if(ss.str().size()>10240)ss.clear();}
-#define ERROR_LOG(...) if(easyopcda::logToDefault)spdlog::error(__VA_ARGS__);if(easyopcda::logToClass){logger->error(__VA_ARGS__);if(ss.str().size()>10240)ss.clear();}
+#define DEBUG_LOG(...) if(easyopcda::logEnabler.logToDefault)spdlog::debug(__VA_ARGS__);if(easyopcda::logEnabler.logToClass){logger->debug(__VA_ARGS__);if(ss.str().size()>10240)ss.clear();}
+#define INFO_LOG(...)  if(easyopcda::logEnabler.logToDefault)spdlog::info(__VA_ARGS__); if(easyopcda::logEnabler.logToClass){logger->info(__VA_ARGS__);if(ss.str().size()>10240)ss.clear();}
+#define WARN_LOG(...) if(easyopcda::logEnabler.logToDefault)spdlog::warn(__VA_ARGS__);if(easyopcda::logEnabler.logToClass){logger->warn(__VA_ARGS__);if(ss.str().size()>10240)ss.clear();}
+#define ERROR_LOG(...) if(easyopcda::logEnabler.logToDefault)spdlog::error(__VA_ARGS__);if(easyopcda::logEnabler.logToClass){logger->error(__VA_ARGS__);if(ss.str().size()>10240)ss.clear();}
 
 namespace easyopcda {
     typedef struct {
@@ -46,12 +46,21 @@ namespace easyopcda {
         VARIANT value;
         WORD quality;
         HRESULT error;
-    } dataAtom;
+    } opcTagResult;
 
-    typedef std::function<void(std::wstring groupName, dataAtom)> ASyncCallback;
+    typedef std::function<void(std::wstring groupName, opcTagResult)> ASyncCallback;
 
-    static bool logToDefault = true;
-    static bool logToClass = true;
+    class logEnablerClass {
+    public:
+        logEnablerClass() { logToDefault=true;logToClass=true;}
+        bool logToDefault;
+        bool logToClass;
+    };
+
+    inline logEnablerClass logEnabler;
+
+    inline void disableLogToDefault() {logEnabler.logToDefault=false;}
+    inline void disableLogToClass() {logEnabler.logToClass = false;}
 }
 
 inline std::string wstringToUTF8(const std::wstring& wstr) {
@@ -410,7 +419,7 @@ inline std::string GUIDToUTF8(const GUID& guid) {
     wchar_t guidString[39]; // GUID string format is 38 characters plus null terminator
     int result = StringFromGUID2(guid, guidString, ARRAYSIZE(guidString));
     if (result == 0) {
-        if(easyopcda::logToDefault)
+        if(easyopcda::logEnabler.logToDefault)
             spdlog::error("unable to print GUID, error: {}", hresultToUTF8(result));
         return "";
     }

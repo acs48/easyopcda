@@ -1,4 +1,4 @@
-// ******  easyopcda v0.1  ******
+// ******  easyopcda v0.2  ******
 // Copyright (C) 2024 Carlo Seghi. All rights reserved.
 // Author Carlo Seghi github.com/acs48.
 //
@@ -33,7 +33,6 @@ private:
     std::shared_ptr<spdlog::sinks::ostream_sink_mt> ss_sink;
     std::shared_ptr<spdlog::logger> logger;
 
-
     OPCClient * mClient;
     easyopcda::ASyncCallback mCallbackFunc;
 public:
@@ -41,16 +40,15 @@ public:
     ~OPCInit();
 
     bool isError() {return error;}
-    std::string lastMessage() {
+    std::string getLogs() {
         auto rv = ss.str();
         ss.clear();
         return rv;
     }
+    void setLogLevel(spdlog::level::level_enum level) { logger->set_level(level); }
 
     OPCClient* getClient();
 };
-
-
 
 
 #endif //OPCINIT_H

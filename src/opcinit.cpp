@@ -1,4 +1,4 @@
-// ******  easyopcda v0.1  ******
+// ******  easyopcda v0.2  ******
 // Copyright (C) 2024 Carlo Seghi. All rights reserved.
 // Author Carlo Seghi github.com/acs48.
 //
@@ -22,58 +22,6 @@
 #include <sstream>
 #include <utility>
 
-/*
-OPCInit::OPCInit(bool multiThreaded, ASyncCallback func)
-{
-
-    auto sink = std::make_shared<spdlog::sinks::ostream_sink_mt>(ss);
-    auto logger = std::make_shared<spdlog::logger>("easyopcda", sink);
-    logger->set_level(spdlog::level::info);
-
-    error=false;
-    mClient = nullptr;
-    mCallbackFunc = std::move(func);
-    INFO_LOG("Initialization of DCOM connection");
-
-    auto tid = std::this_thread::get_id();
-    auto hid = std::hash<std::thread::id>{}(tid);
-    spdlog::debug("Initializing COM on thread {}", hid);
-    if (multiThreaded) {
-        HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-        //COINIT_APARTMENTTHREADED
-        //COINIT_MULTITHREADED
-        if (FAILED(hr)) {
-            ERROR_LOG("Failed to initialize COM library using CoInitializeEx Error code = {}", hresultToUTF8(hr));
-            wss << L"Failed to initialize COM library using CoInitializeEx Error code = " << hresultToWstring(hr) << std::endl;
-            error = true;
-        }
-        hr = CoInitializeSecurity(
-            NULL, -1, NULL, NULL,
-            RPC_C_AUTHN_LEVEL_PKT_INTEGRITY,
-            RPC_C_IMP_LEVEL_IMPERSONATE,
-            NULL, EOAC_NONE, NULL);
-        if (FAILED(hr)) {
-            wss << L"Failed to initialize COM security using CoInitializeSecurity Error code = " << hresultToWstring(hr) << std::endl;
-            ERROR_LOG("Failed to initialize COM security using CoInitializeSecurity Error code = {}", hresultToUTF8(hr));
-            error = true;
-        }
-    } else {
-        HRESULT hr = CoInitialize(nullptr);
-        if (FAILED(hr))
-        {
-            wss << L"Failed to initialize COM library using CoInitialize Error code = " << hr << std::endl;
-            ERROR_LOG("Failed to initialize COM library using CoInitialize Error code = {}", hresultToUTF8(hr));
-            error = true;
-        }
-    }
-
-//    messageString = wss.str();
-
-    if(!error) {
-        mClient = new OPCClient(mCallbackFunc);
-    }
-}
-*/
 
 OPCInit::OPCInit(easyopcda::ASyncCallback func)
     : ss_sink(std::make_shared<spdlog::sinks::ostream_sink_mt>(ss)),

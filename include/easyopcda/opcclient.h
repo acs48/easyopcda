@@ -1,4 +1,4 @@
-// ******  easyopcda v0.1  ******
+// ******  easyopcda v0.2  ******
 // Copyright (C) 2024 Carlo Seghi. All rights reserved.
 // Author Carlo Seghi github.com/acs48.
 //
@@ -72,11 +72,13 @@ public:
     void removeGroup(std::wstring);
 
     bool isError() const {return error;}
-    std::string lastMessage() {
+    std::string getLogs() {
         auto rv = ss.str();
         ss.clear();
         return rv;
     }
+    void setLogLevel(spdlog::level::level_enum level) { logger->set_level(level); }
+
 };
 
 #endif //OPC_CLIENT_H

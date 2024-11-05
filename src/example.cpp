@@ -1,6 +1,18 @@
+// ******  easyopcda v0.2  ******
+// Copyright (C) 2024 Carlo Seghi. All rights reserved.
+// Author Carlo Seghi github.com/acs48.
 //
-// Created by ACS on 30/10/2024.
+// This library is free software; you can redistribute it and/or
+// modify it under the terms of the GNU Library General Public
+// License as published by the Free Software Foundation v3.0
 //
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Library General Public License for more details.
+//
+// Use of this source code is governed by a GNU General Public License v3.0
+// License that can be found in the LICENSE file.
 
 #include "easyopcda/easyopcda.h"
 #include "easyopcda/opcinit.h"
@@ -19,8 +31,11 @@ int main(int argc, char **argv) {
 	spdlog::set_default_logger(console);
 	spdlog::set_level(spdlog::level::info);
 
-	auto opcConnection = new OPCInit([](std::wstring groupName, easyopcda::dataAtom inputData) {
-		spdlog::info("group: {:<10}item: {:<20}time: {:<30}\tvalue: {:<20}\tquality: {:<15}\terror: {:<15}", wstringToUTF8(groupName),wstringToUTF8(inputData.tagName), FileTimeToChrono(inputData.timestamp), variant2UTF8(inputData.value), opcQualityToUTF8(inputData.quality),hresultToUTF8(inputData.error));
+	easyopcda::disableLogToClass();
+	//easyopcda::disableLogToDefault();
+
+	auto opcConnection = new OPCInit([](std::wstring groupName, easyopcda::opcTagResult inputData) {
+		spdlog::info("group: {:<10}item: {:<20}time: {:<30}value: {:<20}quality: {:<15}error: {:<15}", wstringToUTF8(groupName),wstringToUTF8(inputData.tagName), FileTimeToChrono(inputData.timestamp), variant2UTF8(inputData.value), opcQualityToUTF8(inputData.quality),hresultToUTF8(inputData.error));
 	});
 	auto client = opcConnection->getClient();
 	client->setOPCServerHostAndUser(L"localhost",L"",L"",L"");
