@@ -49,9 +49,9 @@ private:
     std::wstring myName;
 
     bool error;
-    std::stringstream ss;
-    std::shared_ptr<spdlog::sinks::ostream_sink_mt> ss_sink;
-    std::shared_ptr<spdlog::logger> logger;
+    //std::stringstream ss;
+    //std::shared_ptr<spdlog::sinks::ostream_sink_mt> ss_sink;
+    //std::shared_ptr<spdlog::logger> logger;
 
     ATL::CComPtr<IOPCGroupStateMgt> groupMgr;
     ATL::CComPtr<IOPCItemMgt> itemMgr;
@@ -119,13 +119,14 @@ public:
     void syncWriteItems(std::vector<std::wstring> &items, std::vector<double> values);
 
     bool isError() const {return error;}
+    /*
     std::string getLogs() {
         auto rv = ss.str();
         ss.clear();
         return rv;
     }
     void setLogLevel(spdlog::level::level_enum level) { logger->set_level(level); }
-
+    */
 };
 
 #endif //OPCGROUP_H

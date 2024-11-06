@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
 	spdlog::set_level(spdlog::level::info);
 
 	easyopcda::disableLogToClass();
-	//easyopcda::disableLogToDefault();
+	easyopcda::enableLogToDefault();
 
 	auto opcConnection = new OPCInit([](std::wstring groupName, easyopcda::opcTagResult inputData) {
 		spdlog::info("group: {:<10}item: {:<20}time: {:<30}value: {:<20}quality: {:<15}error: {:<15}", wstringToUTF8(groupName),wstringToUTF8(inputData.tagName), FileTimeToChrono(inputData.timestamp), variant2UTF8(inputData.value), opcQualityToUTF8(inputData.quality),hresultToUTF8(inputData.error));

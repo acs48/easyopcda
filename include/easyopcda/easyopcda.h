@@ -21,6 +21,7 @@
 #include <atlbase.h>
 
 #include "spdlog/spdlog.h"
+#include "spdlog/sinks/ostream_sink.h"
 
 #include "opccomn.h"
 #include "opcda.h"
@@ -34,10 +35,10 @@
 #include <chrono>
 
 
-#define DEBUG_LOG(...) if(easyopcda::logEnabler.logToDefault)spdlog::debug(__VA_ARGS__);if(easyopcda::logEnabler.logToClass){logger->debug(__VA_ARGS__);if(ss.str().size()>10240)ss.clear();}
-#define INFO_LOG(...)  if(easyopcda::logEnabler.logToDefault)spdlog::info(__VA_ARGS__); if(easyopcda::logEnabler.logToClass){logger->info(__VA_ARGS__);if(ss.str().size()>10240)ss.clear();}
-#define WARN_LOG(...) if(easyopcda::logEnabler.logToDefault)spdlog::warn(__VA_ARGS__);if(easyopcda::logEnabler.logToClass){logger->warn(__VA_ARGS__);if(ss.str().size()>10240)ss.clear();}
-#define ERROR_LOG(...) if(easyopcda::logEnabler.logToDefault)spdlog::error(__VA_ARGS__);if(easyopcda::logEnabler.logToClass){logger->error(__VA_ARGS__);if(ss.str().size()>10240)ss.clear();}
+#define DEBUG_LOG(...) if(easyopcda::logEnabler.logToDefault)spdlog::debug(__VA_ARGS__);if(easyopcda::logEnabler.logToString){easyopcda::logEnabler.logger->debug(__VA_ARGS__);}
+#define INFO_LOG(...)  if(easyopcda::logEnabler.logToDefault)spdlog::info(__VA_ARGS__); if(easyopcda::logEnabler.logToString){easyopcda::logEnabler.logger->info(__VA_ARGS__);}
+#define WARN_LOG(...) if(easyopcda::logEnabler.logToDefault)spdlog::warn(__VA_ARGS__);if(easyopcda::logEnabler.logToString){easyopcda::logEnabler.logger->warn(__VA_ARGS__);}
+#define ERROR_LOG(...) if(easyopcda::logEnabler.logToDefault)spdlog::error(__VA_ARGS__);if(easyopcda::logEnabler.logToString){easyopcda::logEnabler.logger->error(__VA_ARGS__);}
 
 namespace easyopcda {
     typedef struct {
@@ -52,15 +53,31 @@ namespace easyopcda {
 
     class logEnablerClass {
     public:
-        logEnablerClass() { logToDefault=true;logToClass=true;}
+        logEnablerClass() { logToDefault=true;logToString=false;}
         bool logToDefault;
-        bool logToClass;
+        bool logToString;
+
+        std::stringstream ss;
+        std::shared_ptr<spdlog::sinks::ostream_sink_mt> ss_sink;
+        std::shared_ptr<spdlog::logger> logger;
+
+
+        void setLogLevel(spdlog::level::level_enum level) { logger->set_level(level); }
     };
 
     inline logEnablerClass logEnabler;
 
+    inline std::string getLogs() {
+        auto rv = logEnabler.ss.str();
+        logEnabler.ss.clear();
+        return rv;
+    }
+
+
     inline void disableLogToDefault() {logEnabler.logToDefault=false;}
-    inline void disableLogToClass() {logEnabler.logToClass = false;}
+    inline void disableLogToClass() {logEnabler.logToString = false;}
+    inline void enableLogToDefault() {logEnabler.logToDefault=true;}
+    inline void enableLogToClass() {logEnabler.logToString = true;}
 }
 
 inline std::string wstringToUTF8(const std::wstring& wstr) {

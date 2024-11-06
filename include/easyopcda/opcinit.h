@@ -29,9 +29,9 @@ class OPCInit
 {
 private:
     bool error;
-    std::stringstream ss;
-    std::shared_ptr<spdlog::sinks::ostream_sink_mt> ss_sink;
-    std::shared_ptr<spdlog::logger> logger;
+    //std::stringstream ss;
+    //std::shared_ptr<spdlog::sinks::ostream_sink_mt> ss_sink;
+    //std::shared_ptr<spdlog::logger> logger;
 
     OPCClient * mClient;
     easyopcda::ASyncCallback mCallbackFunc;
@@ -40,12 +40,15 @@ public:
     ~OPCInit();
 
     bool isError() {return error;}
+
+    /*
     std::string getLogs() {
         auto rv = ss.str();
         ss.clear();
         return rv;
     }
     void setLogLevel(spdlog::level::level_enum level) { logger->set_level(level); }
+    */
 
     OPCClient* getClient();
 };

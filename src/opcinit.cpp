@@ -24,8 +24,8 @@
 
 
 OPCInit::OPCInit(easyopcda::ASyncCallback func)
-    : ss_sink(std::make_shared<spdlog::sinks::ostream_sink_mt>(ss)),
-      logger(std::make_shared<spdlog::logger>("easyopcda", ss_sink))
+//    : ss_sink(std::make_shared<spdlog::sinks::ostream_sink_mt>(ss)),
+//      logger(std::make_shared<spdlog::logger>("easyopcda", ss_sink))
 {
     error=false;
     mClient = nullptr;

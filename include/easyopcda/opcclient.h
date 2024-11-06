@@ -34,9 +34,9 @@ class OPCClient
 {
 private:
     bool error;
-    std::stringstream ss;
-    std::shared_ptr<spdlog::sinks::ostream_sink_mt> ss_sink;
-    std::shared_ptr<spdlog::logger> logger;
+    //std::stringstream ss;
+    //std::shared_ptr<spdlog::sinks::ostream_sink_mt> ss_sink;
+    //std::shared_ptr<spdlog::logger> logger;
 
     std::wstring hostName;
     std::wstring domain;
@@ -72,13 +72,14 @@ public:
     void removeGroup(std::wstring);
 
     bool isError() const {return error;}
+    /*
     std::string getLogs() {
         auto rv = ss.str();
         ss.clear();
         return rv;
     }
     void setLogLevel(spdlog::level::level_enum level) { logger->set_level(level); }
-
+    */
 };
 
 #endif //OPC_CLIENT_H
